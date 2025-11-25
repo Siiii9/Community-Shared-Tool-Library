@@ -47,4 +47,5 @@ public class CreditController {
     public void restoreCredit(@RequestParam Integer userId) {
         creditService.addCreditScore(userId, 5, "演示：手动恢复信用");
     }
+
 }
