@@ -1,3 +1,4 @@
+<!-- src/views/Credit.vue -->
 <template>
   <div class="credit">
     <div class="credit-header">
@@ -9,26 +10,21 @@
       <!-- 信用分数卡片 -->
       <div class="credit-score-card">
         <div class="score-main">
-          <div class="score-circle">
-            <div class="score-value">95</div>
+          <div class="score-circle" :style="scoreCircleStyle">
+            <div class="score-value">{{ creditInfo.creditScore }}</div>
             <div class="score-label">信用分数</div>
           </div>
           <div class="score-details">
-            <h3>信用良好</h3>
-            <p>继续保持良好的借用记录可以享受更多优惠</p>
-            <div class="score-breakdown">
-              <div class="breakdown-item">
-                <span class="label">初始分数</span>
-                <span class="value">100</span>
-              </div>
-              <div class="breakdown-item">
-                <span class="label">累计加分</span>
-                <span class="value positive">+8</span>
-              </div>
-              <div class="breakdown-item">
-                <span class="label">累计扣分</span>
-                <span class="value negative">-13</span>
-              </div>
+            <h3>{{ creditLevel }}</h3>
+            <p>信用分越高，押金越低，借用更便捷！</p>
+            <div class="score-actions">
+              <!-- 🔹 新增：两个按钮并排 -->
+              <button class="btn-simulate" @click="simulateOverdue">
+                模拟逾期1天（-5分）
+              </button>
+              <button class="btn-restore" @click="restoreCredit">
+                恢复信用（+5分）
+              </button>
             </div>
           </div>
         </div>
@@ -39,19 +35,26 @@
         <h3>押金状态</h3>
         <div class="deposit-info">
           <div class="deposit-item">
-            <div class="deposit-label">当前押金系数</div>
-            <div class="deposit-value coefficient">70%</div>
-            <div class="deposit-desc">基于您的信用分数，享受押金优惠</div>
+            <div class="deposit-label">当前押金</div>
+            <div class="deposit-value">{{ formattedDeposit }}</div>
+            <div class="deposit-desc">{{ depositDesc }}</div>
           </div>
           <div class="deposit-item">
-            <div class="deposit-label">押金余额</div>
-            <div class="deposit-value balance">¥200.00</div>
-            <div class="deposit-desc">可用于借用工具的押金</div>
+            <div class="deposit-label">押金状态</div>
+            <div class="deposit-value" :class="{ paid: creditInfo.isDepositPaid, unpaid: !creditInfo.isDepositPaid }">
+              {{ creditInfo.isDepositPaid ? '已缴纳' : '未缴纳' }}
+            </div>
+            <div class="deposit-desc">借用前需缴纳押金</div>
           </div>
         </div>
         <div class="deposit-actions">
-          <button class="btn-primary" @click="showRecharge = true">充值押金</button>
-          <button class="btn-secondary" @click="showWithdraw = true">申请提现</button>
+          <button 
+            class="btn-primary" 
+            @click="payDeposit" 
+            :disabled="creditInfo.isDepositPaid"
+          >
+            {{ creditInfo.isDepositPaid ? '押金已缴纳' : '缴纳押金' }}
+          </button>
         </div>
       </div>
 
@@ -59,41 +62,23 @@
       <div class="history-card">
         <h3>信用历史记录</h3>
         <div class="history-list">
-          <div v-for="record in creditHistory" :key="record.id" class="history-item">
-            <div class="history-icon" :class="record.type">
-              <span class="material-icons">{{ record.icon }}</span>
+          <div v-for="record in creditLogs" :key="record.id" class="history-item">
+            <div class="history-icon" :class="record.changeScore > 0 ? 'positive' : 'negative'">
+              <span class="material-icons">
+                {{ record.changeScore > 0 ? 'thumb_up' : 'schedule' }}
+              </span>
             </div>
             <div class="history-content">
-              <div class="history-title">{{ record.title }}</div>
-              <div class="history-desc">{{ record.description }}</div>
-              <div class="history-time">{{ record.time }}</div>
+              <div class="history-title">{{ record.reason }}</div>
+              <div class="history-time">{{ formatDate(record.createTime) }}</div>
             </div>
-            <div class="history-change" :class="record.change > 0 ? 'positive' : 'negative'">
-              {{ record.change > 0 ? '+' : '' }}{{ record.change }}
+            <div class="history-change" :class="record.changeScore > 0 ? 'positive' : 'negative'">
+              {{ record.changeScore > 0 ? '+' : '' }}{{ record.changeScore }}
             </div>
           </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 充值模态框 -->
-    <div v-if="showRecharge" class="modal-overlay" @click="showRecharge = false">
-      <div class="modal-content" @click.stop>
-        <h3>押金充值</h3>
-        <p>演示版本，充值功能暂不可用</p>
-        <div class="modal-actions">
-          <button class="btn-primary" @click="showRecharge = false">确定</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 提现模态框 -->
-    <div v-if="showWithdraw" class="modal-overlay" @click="showWithdraw = false">
-      <div class="modal-content" @click.stop>
-        <h3>押金提现</h3>
-        <p>演示版本，提现功能暂不可用</p>
-        <div class="modal-actions">
-          <button class="btn-primary" @click="showWithdraw = false">确定</button>
+          <div v-if="creditLogs.length === 0" class="no-records">
+            暂无信用记录
+          </div>
         </div>
       </div>
     </div>
@@ -101,49 +86,123 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import axios from 'axios'
 
-const showRecharge = ref(false)
-const showWithdraw = ref(false)
+const creditInfo = ref({
+  creditScore: 100,
+  depositAmount: 200.00,
+  isDepositPaid: false
+})
 
-const creditHistory = ref([
-  {
-    id: 1,
-    type: 'positive',
-    icon: 'thumb_up',
-    title: '按时归还工具',
-    description: '电钻 - 提前2小时归还',
-    time: '2024-03-15 14:30',
-    change: 2
-  },
-  {
-    id: 2,
-    type: 'positive',
-    icon: 'star',
-    title: '获得好评',
-    description: '来自用户张先生的5星评价',
-    time: '2024-03-10 09:15',
-    change: 1
-  },
-  {
-    id: 3,
-    type: 'negative',
-    icon: 'schedule',
-    title: '归还逾期',
-    description: '手电筒 - 逾期1天归还',
-    time: '2024-03-05 16:20',
-    change: -5
-  },
-  {
-    id: 4,
-    type: 'positive',
-    icon: 'thumb_up',
-    title: '按时归还工具',
-    description: '梯子 - 按时归还',
-    time: '2024-02-28 11:45',
-    change: 1
+const creditLogs = ref([])
+const userId = 1 // 演示用固定用户ID（实际项目应从登录状态获取）
+
+// 获取信用信息
+const fetchCreditInfo = async () => {
+  try {
+    const res = await axios.get('/api/credit/info', { params: { userId } })
+    creditInfo.value = res.data
+  } catch (error) {
+    console.error('获取信用信息失败:', error)
   }
-])
+}
+
+// 获取信用日志
+const fetchCreditLogs = async () => {
+  try {
+    const res = await axios.get('/api/credit/logs', { params: { userId } })
+    creditLogs.value = res.data
+  } catch (error) {
+    console.error('获取信用日志失败:', error)
+  }
+}
+
+// 模拟逾期1天（-5分）
+const simulateOverdue = async () => {
+  if (!confirm('确定模拟逾期1天？信用分将减少5分')) return
+  try {
+    await axios.post('/api/credit/simulate-overdue', null, { params: { userId } })
+    await fetchCreditInfo()
+    await fetchCreditLogs()
+  } catch (error) {
+    alert('模拟逾期失败，请重试')
+  }
+}
+
+// 🔹 新增：恢复信用（+5分）
+const restoreCredit = async () => {
+  if (!confirm('确定恢复信用？信用分将增加5分')) return
+  try {
+    await axios.post('/api/credit/restore-credit', null, { params: { userId } })
+    await fetchCreditInfo()
+    await fetchCreditLogs()
+  } catch (error) {
+    alert('恢复信用失败，请重试')
+  }
+}
+
+// 缴纳押金（演示）
+const payDeposit = async () => {
+  if (!confirm('确认缴纳押金？')) return
+  try {
+    await axios.post('/api/credit/pay-deposit', null, { params: { userId } })
+    creditInfo.value.isDepositPaid = true
+    alert('押金缴纳成功！')
+  } catch (error) {
+    alert('押金缴纳失败')
+  }
+}
+
+// 格式化押金金额
+const formattedDeposit = computed(() => {
+  return `¥${creditInfo.value.depositAmount?.toFixed(2) || '0.00'}`
+})
+
+// 押金描述
+const depositDesc = computed(() => {
+  const score = creditInfo.value.creditScore
+  if (score >= 90) return 'AAA级用户，押金5折！'
+  if (score >= 80) return 'AA级用户，押金7折！'
+  if (score >= 70) return 'A级用户，标准押金'
+  return '信用较低，押金1.5倍'
+})
+
+// 信用等级
+const creditLevel = computed(() => {
+  const score = creditInfo.value.creditScore
+  if (score >= 90) return '信用优秀 (AAA)'
+  if (score >= 80) return '信用良好 (AA)'
+  if (score >= 70) return '信用一般 (A)'
+  return '信用较差 (B)'
+})
+
+// 动态圆环样式
+const scoreCircleStyle = computed(() => {
+  const score = creditInfo.value.creditScore || 0
+  const percentage = Math.min(100, Math.max(0, score))
+  return {
+    background: `conic-gradient(#27ae60 0% ${percentage}%, #ecf0f1 ${percentage}% 100%)`
+  }
+})
+
+// 格式化日期
+const formatDate = (dateStr) => {
+  if (!dateStr) return ''
+  const date = new Date(dateStr)
+  return date.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
+onMounted(async () => {
+  await fetchCreditInfo()
+  await fetchCreditLogs()
+})
 </script>
 
 <style scoped>
@@ -190,7 +249,6 @@ const creditHistory = ref([
   width: 150px;
   height: 150px;
   border-radius: 50%;
-  background: conic-gradient(#27ae60 0% 95%, #ecf0f1 95% 100%);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -230,33 +288,40 @@ const creditHistory = ref([
   margin-bottom: 20px;
 }
 
-.score-breakdown {
+/* 🔹 修改：按钮并排 */
+.score-actions {
+  margin-top: 20px;
   display: flex;
-  flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
-.breakdown-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 0;
+.btn-simulate {
+  padding: 8px 16px;
+  background: #e74c3c;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
 }
 
-.breakdown-item .label {
-  color: #7f8c8d;
+.btn-simulate:hover {
+  background: #c0392b;
 }
 
-.breakdown-item .value {
-  font-weight: 600;
+/* 🔹 新增：恢复信用按钮 */
+.btn-restore {
+  padding: 8px 16px;
+  background: #27ae60;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
 }
 
-.breakdown-item .value.positive {
-  color: #27ae60;
-}
-
-.breakdown-item .value.negative {
-  color: #e74c3c;
+.btn-restore:hover {
+  background: #219653;
 }
 
 .deposit-card, .history-card {
@@ -291,12 +356,12 @@ const creditHistory = ref([
   margin-bottom: 5px;
 }
 
-.deposit-value.coefficient {
-  color: #3498db;
+.deposit-value.paid {
+  color: #27ae60;
 }
 
-.deposit-value.balance {
-  color: #27ae60;
+.deposit-value.unpaid {
+  color: #e74c3c;
 }
 
 .deposit-desc {
@@ -355,12 +420,6 @@ const creditHistory = ref([
   margin-bottom: 4px;
 }
 
-.history-desc {
-  color: #7f8c8d;
-  font-size: 0.9rem;
-  margin-bottom: 4px;
-}
-
 .history-time {
   color: #95a5a6;
   font-size: 0.8rem;
@@ -379,8 +438,10 @@ const creditHistory = ref([
   color: #e74c3c;
 }
 
-.btn-primary, .btn-secondary {
+.btn-primary {
   padding: 12px 24px;
+  background: #3498db;
+  color: white;
   border: none;
   border-radius: 6px;
   cursor: pointer;
@@ -388,61 +449,13 @@ const creditHistory = ref([
   transition: background 0.3s;
 }
 
-.btn-primary {
-  background: #3498db;
-  color: white;
-}
-
-.btn-secondary {
-  background: #95a5a6;
-  color: white;
-}
-
 .btn-primary:hover {
   background: #2980b9;
 }
 
-.btn-secondary:hover {
-  background: #7f8c8d;
-}
-
-/* 模态框样式 */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0,0,0,0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal-content {
-  background: white;
-  padding: 30px;
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.2);
-  max-width: 400px;
-  width: 90%;
+.no-records {
   text-align: center;
-}
-
-.modal-content h3 {
-  margin-bottom: 15px;
-  color: #2c3e50;
-}
-
-.modal-content p {
-  color: #7f8c8d;
-  margin-bottom: 20px;
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: center;
-  gap: 15px;
+  color: #95a5a6;
+  padding: 20px;
 }
 </style>
