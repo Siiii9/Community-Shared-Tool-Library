@@ -27,7 +27,8 @@ public class CreditService {
         UserInfo user = userInfoRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
 
-        int newScore = Math.max(0, user.getCreditScore() - penalty); // 最低0分
+        Integer currentScore = user.getCreditScore() != null ? user.getCreditScore() : 100;
+        int newScore = Math.max(0, currentScore - penalty); // 最低0分
         user.setCreditScore(newScore);
         userInfoRepository.save(user);
 
@@ -45,7 +46,8 @@ public class CreditService {
         UserInfo user = userInfoRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
 
-        int newScore = Math.min(100, user.getCreditScore() + bonus); // 最高100分
+        Integer currentScore = user.getCreditScore() != null ? user.getCreditScore() : 100;
+        int newScore = Math.min(100, currentScore + bonus); // 最高100分
         user.setCreditScore(newScore);
         userInfoRepository.save(user);
 
@@ -78,8 +80,9 @@ public class CreditService {
 
         CreditInfo info = new CreditInfo();
         info.setUserId(userId);
-        info.setCreditScore(user.getCreditScore());
-        info.setDepositAmount(calculateDeposit(user.getCreditScore()));
+        Integer creditScore = user.getCreditScore() != null ? user.getCreditScore() : 100;
+        info.setCreditScore(creditScore);
+        info.setDepositAmount(calculateDeposit(creditScore));
         info.setIsDepositPaid(user.getIsDepositPaid());
         return info;
     }
