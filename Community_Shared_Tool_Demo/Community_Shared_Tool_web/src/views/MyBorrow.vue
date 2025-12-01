@@ -44,16 +44,22 @@
           <td>
             <span
               :class="{
-                'status-borrowing': record.status === 'borrowing',
-                'status-returned': record.status === 'returned',
-                'status-overdue': record.status === 'overdue'
+                'status-pending': record.status === 'PENDING',
+                'status-approved': record.status === 'APPROVED',
+                'status-taken': record.status === 'TAKEN',
+                'status-returned': record.status === 'RETURNED',
+                'status-rejected': record.status === 'REJECTED'
               }"
             >
               {{ statusText[record.status] }}
             </span>
           </td>
           <td>
-            <button v-if="record.status === 'borrowing'" @click="handleReturn(record)" class="btn-return">归还</button>
+            <button v-if="record.status === 'TAKEN'" @click="handleReturn(record)" class="btn-return">归还</button>
+            <button v-else-if="record.status === 'APPROVED'" @click="confirmTake(record)" class="btn-take">确认取用</button>
+            <span v-else-if="record.status === 'PENDING'" class="status-pending">等待同意</span>
+            <span v-else-if="record.status === 'REJECTED'" class="status-rejected">已拒绝</span>
+            <span v-else-if="record.status === 'RETURNED'" class="status-returned">已归还</span>
             <span v-else>—</span>
           </td>
         </tr>
@@ -72,34 +78,25 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import axios from 'axios'
 
 const statusText = {
-  borrowing: '借用中',
-  returned: '已归还',
-  overdue: '已逾期'
+  PENDING: '待同意',
+  APPROVED: '已同意',
+  TAKEN: '已取用',
+  RETURNED: '已归还',
+  REJECTED: '已拒绝'
 }
 
-// 模拟数据
-const generateMockBorrow = () => {
-  const tools = ['电钻', '扳手', '角磨机', '水平仪', '激光测距仪']
-  const types = ['电动工具', '手动工具', '测量工具']
-  return Array.from({ length: 30 }, (_, i) => {
-    const borrowTime = new Date(Date.now() - Math.floor(Math.random() * 10) * 86400000)
-    const status = ['borrowing', 'returned', 'overdue'][Math.floor(Math.random() * 3)]
-    let expectedReturnTime = new Date(borrowTime)
-    expectedReturnTime.setDate(expectedReturnTime.getDate() + 3)
-
-    return {
-      id: i + 1,
-      toolName: tools[i % tools.length],
-      toolType: types[i % types.length],
-      borrowTime: borrowTime.toISOString(),
-      expectedReturnTime: expectedReturnTime.toISOString(),
-      actualReturnTime: status === 'returned' ? new Date(expectedReturnTime.getTime() + Math.random() * 86400000).toISOString() : null,
-      status
-    }
-  })
-}
+// 模拟工具数据
+const tools = ref([
+  { id: 1, name: '梯子', type: '高空作业工具' },
+  { id: 2, name: '冲击钻', type: '电动工具' },
+  { id: 3, name: '万用表', type: '测量工具' },
+  { id: 4, name: '电焊机', type: '焊接工具' },
+  { id: 5, name: '手电钻', type: '电动工具' },
+  { id: 6, name: '水平仪', type: '测量工具' }
+])
 
 const rawData = ref([])
 const filter = ref({ toolName: '', status: '' })
@@ -140,8 +137,43 @@ const formatDate = (isoStr) => {
   })
 }
 
-const refreshData = () => {
-  rawData.value = generateMockBorrow()
+const refreshData = async () => {
+  try {
+    // 模拟当前用户ID（实际项目中应从登录状态获取）
+    const currentUserId = 1
+    
+    const response = await axios.get(`/api/borrow/my-borrows/${currentUserId}`)
+    if (response.data.success) {
+      rawData.value = response.data.data.map(record => {
+        const tool = tools.value.find(t => t.id === record.toolId) || { name: '未知工具', type: '未知类型' }
+        return {
+          id: record.id,
+          toolName: tool.name,
+          toolType: tool.type,
+          borrowTime: record.applyTime,
+          expectedReturnTime: record.expectedReturnTime,
+          actualReturnTime: record.returnTime,
+          status: record.status,
+          borrowRecord: record
+        }
+      })
+    }
+  } catch (error) {
+    console.error('获取借用记录失败：', error)
+    // 模拟数据
+    rawData.value = [
+      {
+        id: 1,
+        toolName: '梯子',
+        toolType: '高空作业工具',
+        borrowTime: new Date().toISOString(),
+        expectedReturnTime: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+        actualReturnTime: null,
+        status: 'PENDING',
+        borrowRecord: { id: 1, toolId: 1, status: 'PENDING' }
+      }
+    ]
+  }
 }
 
 const applyFilter = () => {
@@ -176,10 +208,34 @@ const exportBorrowList = () => {
   link.click()
 }
 
-const handleReturn = (record) => {
+const handleReturn = async (record) => {
   if (confirm(`确定归还工具【${record.toolName}】？`)) {
-    alert('归还成功！')
-    // 实际项目中应调用 API
+    try {
+      const response = await axios.post(`/api/borrow/return/${record.borrowRecord.id}`)
+      if (response.data.success) {
+        alert('归还成功！')
+        await refreshData()
+      }
+    } catch (error) {
+      console.error('归还失败：', error)
+      alert('归还失败，请重试')
+    }
+  }
+}
+
+// 确认取用
+const confirmTake = async (record) => {
+  if (confirm(`确认已取用工具【${record.toolName}】？`)) {
+    try {
+      const response = await axios.post(`/api/borrow/take/${record.borrowRecord.id}`)
+      if (response.data.success) {
+        alert('取用确认成功！')
+        await refreshData()
+      }
+    } catch (error) {
+      console.error('取用确认失败：', error)
+      alert('操作失败，请重试')
+    }
   }
 }
 
@@ -243,9 +299,53 @@ onMounted(() => {
   user-select: none;
 }
 
-.status-borrowing { color: #28a745; }
-.status-returned { color: #6c757d; }
-.status-overdue { color: #dc3545; }
+.status-pending {
+  background: #faad14;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.status-approved {
+  background: #1890ff;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.status-taken {
+  background: #52c41a;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.status-returned {
+  background: #722ed1;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.status-rejected {
+  background: #ff4d4f;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.btn-take {
+  background: #1890ff;
+  color: white;
+  border: none;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.btn-take:hover {
+  background: #40a9ff;
+}
 
 .btn-return {
   padding: 4px 8px;

@@ -21,20 +21,54 @@
       </div>
 
       <!-- 操作按钮 -->
-      <div class="action-buttons">
-        <button class="chat-btn" @click="goToChat">
-          <span class="material-icons">chat</span>
-          聊一聊
-        </button>
-        <button 
-          class="borrow-btn" 
-          @click="borrowTool" 
-          :disabled="tool?.status !== 'available'"
-        >
-          <span class="material-icons">shopping_cart</span>
-          借用
-        </button>
+    <div class="action-buttons">
+      <button class="chat-btn" @click="goToChat">
+        <span class="material-icons">chat</span>
+        聊一聊
+      </button>
+      <button 
+        class="borrow-btn" 
+        @click="showApplyDialog" 
+        :disabled="tool?.status !== 'available'"
+      >
+        <span class="material-icons">shopping_cart</span>
+        申请借用
+      </button>
+    </div>
+
+    <!-- 借用申请对话框 -->
+    <div v-if="showApplyForm" class="apply-dialog-overlay">
+      <div class="apply-dialog">
+        <h3>申请借用 {{ tool?.name }}</h3>
+        <form @submit.prevent="submitApply">
+          <div class="form-group">
+            <label for="borrowDays">借用天数：</label>
+            <input 
+              type="number" 
+              id="borrowDays" 
+              v-model="applyForm.borrowDays" 
+              min="1" 
+              max="30" 
+              required
+            >
+          </div>
+          <div class="form-group">
+            <label for="applyReason">借用原因：</label>
+            <textarea 
+              id="applyReason" 
+              v-model="applyForm.applyReason" 
+              rows="4" 
+              placeholder="请简要说明您的借用原因"
+              required
+            ></textarea>
+          </div>
+          <div class="dialog-buttons">
+            <button type="button" @click="cancelApply" class="cancel-btn">取消</button>
+            <button type="submit" class="submit-btn">提交申请</button>
+          </div>
+        </form>
       </div>
+    </div>
     </div>
   </div>
 </template>
@@ -111,11 +145,63 @@ const goToChat = () => {
   router.push('/community-chat')
 }
 
-// 借用工具
-const borrowTool = () => {
+// 借用申请相关状态
+const showApplyForm = ref(false)
+const applyForm = ref({
+  borrowDays: 3,
+  applyReason: ''
+})
+
+// 显示申请对话框
+const showApplyDialog = () => {
   if (tool.value?.status !== 'available') return
-  alert(`✅ 已成功提交借用申请：${tool.value.name}`)
-  tool.value.status = 'borrowed'
+  showApplyForm.value = true
+}
+
+// 取消申请
+const cancelApply = () => {
+  showApplyForm.value = false
+  applyForm.value = {
+    borrowDays: 3,
+    applyReason: ''
+  }
+}
+
+// 提交借用申请
+const submitApply = async () => {
+  if (!applyForm.value.borrowDays || !applyForm.value.applyReason.trim()) {
+    alert('请填写完整的借用信息')
+    return
+  }
+
+  try {
+    // 模拟用户ID和工具所有者ID（实际项目中应从登录状态获取）
+    const currentUserId = 1 // 当前用户ID
+    const toolOwnerId = 2 // 工具所有者ID
+
+    const response = await axios.post('/api/borrow/apply', {
+      toolId: tool.value.id,
+      borrowerId: currentUserId,
+      ownerId: toolOwnerId,
+      borrowDays: applyForm.value.borrowDays,
+      applyReason: applyForm.value.applyReason
+    })
+
+    if (response.data.success) {
+      alert('✅ 借用申请提交成功！等待物品所有者确认。')
+      tool.value.status = 'pending'
+      showApplyForm.value = false
+      applyForm.value = {
+        borrowDays: 3,
+        applyReason: ''
+      }
+    } else {
+      alert(`申请失败：${response.data.message}`)
+    }
+  } catch (error) {
+    console.error('申请借用失败：', error)
+    alert('申请失败，请稍后重试')
+  }
 }
 </script>
 
@@ -198,6 +284,87 @@ const borrowTool = () => {
   border-radius: 8px;
   font-size: 16px;
   font-weight: bold;
+}
+
+/* 借用申请对话框样式 */
+.apply-dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.apply-dialog {
+  background: white;
+  padding: 30px;
+  border-radius: 10px;
+  width: 90%;
+  max-width: 500px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.apply-dialog h3 {
+  margin-bottom: 20px;
+  color: #2c3e50;
+  text-align: center;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: bold;
+  color: #333;
+}
+
+.form-group input,
+.form-group textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.form-group textarea {
+  resize: vertical;
+}
+
+.dialog-buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.cancel-btn {
+  padding: 10px 20px;
+  border: 1px solid #ddd;
+  background: white;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.submit-btn {
+  padding: 10px 20px;
+  background: #1890ff;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.submit-btn:hover {
+  background: #40a9ff;
   cursor: pointer;
   transition: all 0.3s;
 }

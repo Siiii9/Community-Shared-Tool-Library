@@ -8,6 +8,7 @@ import MessageCenter from '../views/MessageCenter.vue'
 import CommunityChat from '../views/CommunityChat.vue'
 import Profile from '../views/Profile.vue'
 import Credit from '../views/Credit.vue'
+import BorrowApplications from '../views/BorrowApplications.vue'
 import MainLayout from '../views/MainLayout.vue'
 import Login from '../views/Login.vue'
 import Register from '../views/Register.vue'
@@ -32,7 +33,8 @@ const router = createRouter({
         { path: '/message-center', name: 'MessageCenter', component: MessageCenter },
         { path: '/community-chat', name: 'CommunityChat', component: CommunityChat },
         { path: '/profile', name: 'Profile', component: Profile },
-        { path: '/credit', name: 'Credit', component: Credit }
+        { path: '/credit', name: 'Credit', component: Credit },
+        { path: '/borrow-applications', name: 'BorrowApplications', component: BorrowApplications }
       ]
     }
   ]
