@@ -1,3 +1,4 @@
+// src/main/java/com/example/Community_Shared_Tool_java/service/PublishedToolService.java
 package com.example.Community_Shared_Tool_java.service;
 
 import com.example.Community_Shared_Tool_java.entity.PublishedTool;
@@ -12,33 +13,33 @@ import java.util.stream.Collectors;
 
 @Service
 public class PublishedToolService {
-    
+
     @Autowired
     private PublishedToolRepository publishedToolRepository;
-    
+
     // 发布新工具
     @Transactional
     public PublishedTool publishTool(PublishedTool tool) {
         tool.setStatus("available"); // 默认状态为可借用
         return publishedToolRepository.save(tool);
     }
-    
+
     // 获取用户发布的所有工具
     public List<PublishedTool> getToolsByOwnerId(Integer ownerId) {
         return publishedToolRepository.findByOwnerId(ownerId);
     }
-    
+
     // 根据ID获取工具
     public Optional<PublishedTool> getToolById(Integer id) {
         return publishedToolRepository.findById(id);
     }
-    
+
     // 更新工具信息
     @Transactional
     public PublishedTool updateTool(PublishedTool tool) {
         return publishedToolRepository.save(tool);
     }
-    
+
     // 更新工具状态
     @Transactional
     public PublishedTool updateToolStatus(Integer id, String status) {
@@ -47,15 +48,20 @@ public class PublishedToolService {
         tool.setStatus(status);
         return publishedToolRepository.save(tool);
     }
-    
+
     // 删除工具
     @Transactional
     public void deleteTool(Integer id) {
         publishedToolRepository.deleteById(id);
     }
-    
+
     // 根据条件搜索工具
     public List<PublishedTool> searchTools(Integer ownerId, String toolName, String status) {
+        // 修复：当无参数时，返回所有活跃工具（available + borrowed）
+        if (ownerId == null && (toolName == null || toolName.isEmpty()) && (status == null || status.isEmpty())) {
+            return publishedToolRepository.findAllActiveTools();
+        }
+
         if (ownerId != null && toolName != null && !toolName.isEmpty() && status != null && !status.isEmpty()) {
             return publishedToolRepository.findByOwnerIdAndToolNameContaining(ownerId, toolName)
                     .stream()
@@ -72,7 +78,7 @@ public class PublishedToolService {
         } else if (status != null && !status.isEmpty()) {
             return publishedToolRepository.findByStatus(status);
         } else {
-            return publishedToolRepository.findAll();
+            return publishedToolRepository.findAllActiveTools(); // 使用新方法
         }
     }
 }

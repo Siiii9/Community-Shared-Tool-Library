@@ -13,9 +13,9 @@
       <label for="borrowStatus">借用状态</label>
       <select v-model="filter.status" id="borrowStatus">
         <option value="">全部状态</option>
-        <option value="borrowing">借用中</option>
-        <option value="returned">已归还</option>
-        <option value="overdue">已逾期</option>
+        <option value="TAKEN">借用中</option>
+        <option value="RETURNED">已归还</option>
+        <option value="OVERDUE">已逾期</option>
       </select>
 
       <button @click="applyFilter">筛选</button>
@@ -44,18 +44,18 @@
           <td>
             <span
               :class="{
-                'status-borrowing': record.status === 'borrowing',
-                'status-returned': record.status === 'returned',
-                'status-overdue': record.status === 'overdue'
+                'status-taken': record.status === 'TAKEN',
+                'status-returned': record.status === 'RETURNED',
+                'status-overdue': record.status === 'OVERDUE'
               }"
             >
               {{ statusText[record.status] }}
             </span>
           </td>
           <td>
-            <button v-if="record.status === 'borrowing'" @click="handleReturn(record)" class="btn-return">归还</button>
-            <span v-else-if="record.status === 'returned'" class="status-returned">已归还</span>
-            <span v-else-if="record.status === 'overdue'" class="status-overdue">已逾期</span>
+            <button v-if="record.status === 'TAKEN'" @click="handleReturn(record)" class="btn-return">归还</button>
+            <span v-else-if="record.status === 'RETURNED'" class="status-returned">已归还</span>
+            <span v-else-if="record.status === 'OVERDUE'" class="status-overdue">已逾期</span>
             <span v-else>—</span>
           </td>
         </tr>
@@ -76,18 +76,18 @@
 import { ref, computed, onMounted } from 'vue'
 import axios from 'axios'
 
-// 状态映射
+// 状态映射（匹配后端 BorrowRecord 状态）
 const statusText = {
-  borrowing: '借用中',
-  returned: '已归还',
-  overdue: '已逾期'
+  PENDING: '待同意',
+  APPROVED: '已同意',
+  TAKEN: '已取用',
+  RETURNED: '已归还',
+  REJECTED: '已拒绝',
+  OVERDUE: '已逾期'
 }
 
-// API基础URL
-const API_BASE_URL = 'http://localhost:8080/api'
-
-// 当前登录用户ID（从localStorage动态获取）
-const currentUserId = ref(parseInt(localStorage.getItem('userId')) || 1)
+// 从 localStorage 获取用户ID
+const currentUserId = parseInt(localStorage.getItem('userId') || '1')
 
 // 数据状态
 const rawData = ref([])
@@ -131,18 +131,31 @@ const formatDate = (isoStr) => {
 
 const refreshData = async () => {
   try {
-    // 调用新的BorrowInfo API获取借用记录
-    const response = await axios.get(`${API_BASE_URL}/borrow-infos/borrower/${currentUserId.value}`)
-    rawData.value = response.data.map(record => ({
-      id: record.id,
-      toolName: record.toolName,
-      toolType: record.toolType,
-      borrowTime: record.borrowTime,
-      expectedReturnTime: record.expectedReturnTime,
-      actualReturnTime: record.actualReturnTime,
-      status: record.status,
-      borrowRecord: record
-    }))
+    // 调用 BorrowController 的 my-borrows 接口
+    const response = await axios.get(`/api/borrow/my-borrows/${currentUserId}`)
+    if (response.data.success) {
+      rawData.value = response.data.data.map(record => {
+        // 假设有工具类型映射
+        const toolTypeMap = {
+          '冲击钻': '电动工具',
+          '万用表': '测量工具',
+          '电焊机': '焊接工具',
+          '手电钻': '电动工具',
+          '水平仪': '测量工具'
+        }
+        
+        return {
+          id: record.id,
+          toolName: record.toolName || '未知工具',
+          toolType: toolTypeMap[record.toolName] || '未知类型',
+          borrowTime: record.applyTime,
+          expectedReturnTime: record.expectedReturnTime,
+          actualReturnTime: record.returnTime,
+          status: record.status,
+          borrowRecord: record
+        }
+      })
+    }
   } catch (error) {
     console.error('获取借用记录失败：', error)
     alert('获取借用记录失败，请重试')
@@ -185,8 +198,8 @@ const exportBorrowList = () => {
 const handleReturn = async (record) => {
   if (confirm(`确定归还工具【${record.toolName}】？`)) {
     try {
-      const response = await axios.patch(`${API_BASE_URL}/borrow-infos/${record.id}/return`)
-      if (response.status === 200) {
+      const response = await axios.post(`/api/borrow/return/${record.borrowRecord.id}`)
+      if (response.data.success) {
         alert('归还成功！')
         await refreshData()
       }
@@ -257,8 +270,22 @@ onMounted(() => {
   user-select: none;
 }
 
-.status-borrowing {
+.status-pending {
+  background: #faad14;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.status-approved {
   background: #1890ff;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.status-taken {
+  background: #52c41a;
   color: white;
   padding: 2px 8px;
   border-radius: 4px;
@@ -266,6 +293,13 @@ onMounted(() => {
 
 .status-returned {
   background: #722ed1;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.status-rejected {
+  background: #ff4d4f;
   color: white;
   padding: 2px 8px;
   border-radius: 4px;

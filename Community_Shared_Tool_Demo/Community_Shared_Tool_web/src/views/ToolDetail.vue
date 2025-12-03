@@ -3,8 +3,9 @@
   <div class="tool-detail">
     <div class="detail-header">
       <h1>{{ tool?.name }}</h1>
-      <div class="status-badge" :class="tool?.status">
-        {{ tool?.status === 'available' ? '可用' : '已借出' }}
+      <!-- 修复：使用更明显的红色背景 -->
+      <div class="status-badge" :class="getStatusClass()">
+        {{ getStatusText() }}
       </div>
     </div>
 
@@ -18,6 +19,7 @@
       <div class="description">
         <h3>工具介绍</h3>
         <p>{{ tool?.description || '暂无介绍' }}</p>
+        <p><strong>位置：</strong>{{ tool?.location }}</p>
       </div>
 
       <!-- 操作按钮 -->
@@ -29,7 +31,7 @@
       <button 
         class="borrow-btn" 
         @click="showApplyDialog" 
-        :disabled="tool?.status !== 'available'"
+        :disabled="!isAvailable()"
       >
         <span class="material-icons">shopping_cart</span>
         申请借用
@@ -95,16 +97,19 @@ const loadToolById = async (id: string) => {
         status: response.data.status,
         location: response.data.location,
         description: response.data.description,
-        borrowDaysLimit: response.data.borrowDaysLimit
+        borrowDaysLength: response.data.borrowDaysLimit, // 修复字段名
+        borrowDaysLimit: response.data.borrowDaysLimit,
+        ownerId: response.data.ownerId // 添加 ownerId
       }
     }
   } catch (error) {
     console.error('获取工具详情失败:', error)
+    alert('获取工具详情失败，请重试')
   }
 }
 
-// 模拟图片（实际项目中从后端获取）
-const toolImage = ref('/images/tool-placeholder.jpg') // 你可以替换为真实图片路径
+// 模拟图片
+const toolImage = ref('/images/tool-placeholder.jpg')
 
 onMounted(async () => {
   await loadToolById(route.params.id as string)
@@ -122,9 +127,27 @@ const applyForm = ref({
   applyReason: ''
 })
 
+// 新增：获取状态类名
+const getStatusClass = () => {
+  if (!tool.value) return 'available';
+  return tool.value.status === 'available' ? 'available' : 'borrowed';
+}
+
+// 新增：获取状态文本
+const getStatusText = () => {
+  if (!tool.value) return '可用';
+  return tool.value.status === 'available' ? '可用' : '已借出';
+}
+
+// 新增：判断是否可借用
+const isAvailable = () => {
+  if (!tool.value) return false;
+  return tool.value.status === 'available';
+}
+
 // 显示申请对话框
 const showApplyDialog = () => {
-  if (tool.value?.status !== 'available') return
+  if (!isAvailable()) return
   showApplyForm.value = true
 }
 
@@ -151,14 +174,13 @@ const submitApply = async () => {
   }
 
   try {
-    // 动态获取用户ID和工具所有者ID
-    const currentUserId = parseInt(localStorage.getItem('userId')) || 1 // 当前用户ID
-    const toolOwnerId = 2 // 工具所有者ID
-
+    // 从 localStorage 获取当前用户ID
+    const currentUserId = parseInt(localStorage.getItem('userId') || '1');
+    
     const response = await axios.post('/api/borrow/apply', {
       toolId: tool.value.id,
       borrowerId: currentUserId,
-      ownerId: toolOwnerId,
+      ownerId: tool.value.ownerId,
       borrowDays: applyForm.value.borrowDays,
       applyReason: applyForm.value.applyReason
     })
@@ -174,9 +196,13 @@ const submitApply = async () => {
     } else {
       alert('申请失败，请稍后重试')
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('申请借用失败：', error)
-    alert('申请失败，请稍后重试')
+    if (error.response?.data?.message) {
+      alert('申请失败：' + error.response.data.message)
+    } else {
+      alert('申请失败，请稍后重试')
+    }
   }
 }
 </script>
@@ -213,8 +239,9 @@ const submitApply = async () => {
   background: #52c41a;
 }
 
+/* 修复：已借出使用明显的红色 */
 .status-badge.borrowed {
-  background: #faad14;
+  background: #ff4d4f;
 }
 
 .image-section {
@@ -300,6 +327,13 @@ const submitApply = async () => {
   margin-bottom: 5px;
   font-weight: bold;
   color: #333;
+}
+
+.limit-info {
+  display: block;
+  margin-top: 5px;
+  font-size: 12px;
+  color: #666;
 }
 
 .form-group input,
