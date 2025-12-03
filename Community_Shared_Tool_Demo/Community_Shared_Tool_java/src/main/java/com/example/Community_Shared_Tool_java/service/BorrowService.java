@@ -258,6 +258,39 @@ public class BorrowService {
         return savedRecord;
     }
     
+    // 拒绝归还工具（所有者拒绝）
+    @Transactional
+    public BorrowRecord rejectReturn(Integer borrowRecordId) {
+        Optional<BorrowRecord> recordOptional = borrowRecordRepository.findById(borrowRecordId);
+        if (recordOptional.isEmpty()) {
+            throw new RuntimeException("借用记录不存在");
+        }
+        
+        BorrowRecord record = recordOptional.get();
+        // 检查状态是否为等待归还确认
+        if (!"WAITING_RETURN_CONFIRM".equals(record.getStatus())) {
+            throw new RuntimeException("该借用记录状态不允许拒绝归还操作");
+        }
+        
+        // 更新记录状态为已领取
+        record.setStatus("TAKEN");
+        
+        // 更新借用记录
+        BorrowRecord savedRecord = borrowRecordRepository.save(record);
+        
+        // 更新BorrowInfo记录的状态为借用中
+        List<BorrowInfo> borrowInfos = borrowInfoRepository.findByToolIdAndBorrowerId(record.getToolId(), record.getBorrowerId());
+        for (BorrowInfo borrowInfo : borrowInfos) {
+            if ("waiting_return_confirm".equals(borrowInfo.getStatus())) {
+                borrowInfo.setStatus("borrowing");
+                borrowInfoRepository.save(borrowInfo);
+                break;
+            }
+        }
+        
+        return savedRecord;
+    }
+    
     // 获取用户的借用记录
     public List<BorrowRecord> getBorrowRecordsByBorrowerId(Integer borrowerId) {
         return borrowRecordRepository.findByBorrowerId(borrowerId);
@@ -265,7 +298,13 @@ public class BorrowService {
     
     // 获取用户收到的借用申请
     public List<BorrowRecord> getBorrowApplicationsByOwnerId(Integer ownerId) {
-        return borrowRecordRepository.findByOwnerIdAndStatus(ownerId, "PENDING");
+        // 返回所有需要处理的申请，包括等待批准和等待归还确认的记录
+        List<BorrowRecord> pendingRecords = borrowRecordRepository.findByOwnerIdAndStatus(ownerId, "PENDING");
+        List<BorrowRecord> waitingReturnRecords = borrowRecordRepository.findByOwnerIdAndStatus(ownerId, "WAITING_RETURN_CONFIRM");
+        
+        // 合并结果
+        pendingRecords.addAll(waitingReturnRecords);
+        return pendingRecords;
     }
     
     // 获取用户已同意的借用记录
