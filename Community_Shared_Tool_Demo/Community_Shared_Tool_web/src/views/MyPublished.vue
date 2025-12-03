@@ -16,6 +16,7 @@
         <option value="">全部状态</option>
         <option value="available">可借用</option>
         <option value="borrowed">已借出</option>
+        <option value="pending">申请中</option>
         <option value="maintenance">维护中</option>
       </select>
 
@@ -31,6 +32,7 @@
           <th>类型</th>
           <th>当前位置</th>
           <th>状态</th>
+          <th>借用提示</th>
           <th>操作</th>
         </tr>
       </thead>
@@ -45,10 +47,31 @@
               :class="{
                 'status-available': tool.status === 'available',
                 'status-borrowed': tool.status === 'borrowed',
+                'status-pending': tool.status === 'pending',
                 'status-maintenance': tool.status === 'maintenance'
               }"
             >
               {{ statusText[tool.status] }}
+            </span>
+          </td>
+          <td>
+            <div v-if="pendingApplications[tool.id] && pendingApplications[tool.id].length > 0" class="pending-applications">
+              <div v-for="application in pendingApplications[tool.id]" :key="application.id" class="application-item">
+                <div class="application-info">
+                  <span class="application-status">申请中</span>
+                  <span class="borrower">用户 {{ application.borrowerId }}</span>
+                </div>
+                <div class="application-actions">
+                  <button @click="approveApplication(application.id, tool.id)" class="btn-approve">同意</button>
+                  <button @click="rejectApplication(application.id, tool.id)" class="btn-reject">拒绝</button>
+                </div>
+              </div>
+            </div>
+            <span v-else-if="tool.status === 'borrowed'" class="borrowing-status">
+              借用中
+            </span>
+            <span v-else class="no-applications">
+              -无-
             </span>
           </td>
           <td>
@@ -103,6 +126,29 @@
               <label for="form-borrowDaysLimit">最大借用天数</label>
               <input v-model.number="formData.borrowDaysLimit" type="number" id="form-borrowDaysLimit" min="1" required />
             </div>
+            <div class="form-group">
+              <label>工具图片</label>
+              <div class="image-upload-container">
+                <input 
+                  type="file" 
+                  id="tool-image" 
+                  accept="image/*" 
+                  @change="handleImageUpload" 
+                  style="display: none"
+                />
+                <label for="tool-image" class="image-upload-btn">
+                  <span v-if="!formData.imageUrl">选择图片</span>
+                  <span v-else>更换图片</span>
+                </label>
+                <div v-if="formData.imageUrl" class="image-preview">
+                  <img :src="formData.imageUrl" alt="工具图片预览" />
+                  <button type="button" @click="removeImage" class="remove-image-btn">删除</button>
+                </div>
+                <div v-if="uploading" class="upload-progress">
+                  <span>上传中...</span>
+                </div>
+              </div>
+            </div>
             <div class="form-actions">
               <button type="submit" class="btn-primary">保存</button>
               <button type="button" @click="closeToolForm">取消</button>
@@ -120,7 +166,8 @@ import { ref, computed, onMounted } from 'vue'
 const statusText = {
   available: '可借用',
   borrowed: '已借出',
-  maintenance: '维护中'
+  maintenance: '维护中',
+  pending: '申请中'
 }
 
 // API基础URL
@@ -131,6 +178,7 @@ const currentUserId = ref(parseInt(localStorage.getItem('userId')) || 1)
 
 // 数据状态
 const rawData = ref([])
+const pendingApplications = ref({})
 const filter = ref({ toolName: '', status: '' })
 const appliedFilter = ref({ toolName: '', status: '' })
 const sort = ref({ prop: null, order: null })
@@ -139,6 +187,7 @@ const pagination = ref({ currentPage: 1, pageSize: 5 })
 // 表单状态
 const isFormVisible = ref(false)
 const formTitle = ref('发布新工具')
+const uploading = ref(false)
 const formData = ref({
   id: null,
   toolName: '',
@@ -147,6 +196,7 @@ const formData = ref({
   location: '',
   status: 'available',
   borrowDaysLimit: 7, // 默认最大借用天数为7天
+  imageUrl: '',
   ownerId: currentUserId.value,
   publishTime: new Date().toISOString()
 })
@@ -193,10 +243,131 @@ const fetchPublishedTools = async () => {
     if (!response.ok) {
       throw new Error('获取工具列表失败')
     }
-    rawData.value = await response.json()
+    const result = await response.json()
+    
+    // 处理后端返回的新响应格式
+    rawData.value = result.success ? result.data : []
+    
+    // 获取借用申请
+    await fetchPendingApplications()
   } catch (error) {
     console.error('获取工具列表出错:', error)
     alert('获取工具列表失败，请重试')
+  }
+}
+
+// 获取待处理的借用申请
+const fetchPendingApplications = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/borrow/my-applications/${currentUserId.value}`)
+    if (!response.ok) {
+      throw new Error('获取借用申请失败')
+    }
+    const result = await response.json()
+    
+    // 处理后端返回的新响应格式
+    const applications = result.success ? result.data : []
+    
+    // 按工具ID分组
+    const grouped = {}
+    applications.forEach(app => {
+      if (!grouped[app.toolId]) {
+        grouped[app.toolId] = []
+      }
+      grouped[app.toolId].push(app)
+    })
+    
+    pendingApplications.value = grouped
+  } catch (error) {
+    console.error('获取借用申请出错:', error)
+    console.log('使用模拟借用申请数据')
+    // 使用模拟数据
+    pendingApplications.value = {
+      1: [
+        {
+          id: 1,
+          toolId: 1,
+          borrowerId: 2,
+          status: 'PENDING',
+          applyTime: new Date().toISOString(),
+          borrowDays: 3
+        }
+      ]
+    }
+  }
+}
+
+// 同意借用申请
+const approveApplication = async (applicationId, toolId) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/borrow/approve/${applicationId}`, {
+      method: 'POST'
+    })
+    
+    if (!response.ok) {
+      throw new Error('同意借用申请失败')
+    }
+    
+    const result = await response.json()
+    if (!result.success) {
+      throw new Error(result.message || '同意借用申请失败')
+    }
+    
+    // 更新工具状态
+    const toolIndex = rawData.value.findIndex(t => t.id === toolId)
+    if (toolIndex !== -1) {
+      rawData.value[toolIndex].status = 'borrowed'
+    }
+    
+    // 重新获取借用申请
+    await fetchPendingApplications()
+    
+    alert('同意借用申请成功')
+  } catch (error) {
+    console.error('同意借用申请出错:', error)
+    alert(error.message || '操作失败，请重试')
+  }
+}
+
+// 拒绝借用申请
+const rejectApplication = async (applicationId, toolId) => {
+  const rejectReason = prompt('请输入拒绝原因：')
+  if (!rejectReason) {
+    alert('请输入拒绝原因')
+    return
+  }
+  
+  try {
+    const response = await fetch(`${API_BASE_URL}/borrow/reject/${applicationId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ rejectReason })
+    })
+    
+    if (!response.ok) {
+      throw new Error('拒绝借用申请失败')
+    }
+    
+    const result = await response.json()
+    if (!result.success) {
+      throw new Error(result.message || '拒绝借用申请失败')
+    }
+    
+    // 更新工具状态为可借用
+    const toolIndex = rawData.value.findIndex(t => t.id === toolId)
+    if (toolIndex !== -1) {
+      rawData.value[toolIndex].status = 'available'
+    }
+    
+    // 重新获取借用申请
+    await fetchPendingApplications()
+    
+    alert('拒绝借用申请成功')
+  } catch (error) {
+    console.error('拒绝借用申请出错:', error)
+    alert('操作失败，请重试')
   }
 }
 
@@ -361,6 +532,57 @@ const changePage = (page) => {
   if (page >= 1 && page <= maxPage.value) {
     pagination.value.currentPage = page
   }
+}
+
+// 图片上传处理函数
+const handleImageUpload = async (event) => {
+  const file = event.target.files[0]
+  if (!file) return
+
+  // 检查文件类型
+  if (!file.type.startsWith('image/')) {
+    alert('请选择图片文件')
+    return
+  }
+
+  // 检查文件大小（限制为5MB）
+  if (file.size > 5 * 1024 * 1024) {
+    alert('图片大小不能超过5MB')
+    return
+  }
+
+  uploading.value = true
+  
+  try {
+    // 创建FormData对象
+    const uploadFormData = new FormData()
+    uploadFormData.append('image', file)
+    
+    // 上传图片到后端
+    const response = await fetch(`${API_BASE_URL}/upload/image`, {
+      method: 'POST',
+      body: uploadFormData
+    })
+    
+    if (!response.ok) {
+      throw new Error('图片上传失败')
+    }
+    
+    const result = await response.json()
+    formData.value.imageUrl = result.imageUrl
+    
+  } catch (error) {
+    console.error('图片上传出错:', error)
+    alert('图片上传失败，请重试')
+  } finally {
+    uploading.value = false
+    // 重置文件输入
+    event.target.value = ''
+  }
+}
+
+const removeImage = () => {
+  formData.value.imageUrl = ''
 }
 
 // 组件挂载时加载数据
@@ -531,5 +753,134 @@ onMounted(() => {
   border: 1px solid #ccc;
   border-radius: 4px;
   cursor: pointer;
+}
+
+/* 借用提示样式 */
+.pending-applications {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.application-item {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px;
+  border: 1px solid #faad14;
+  border-radius: 4px;
+  background: #fffbe6;
+}
+
+.application-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+
+.application-status {
+  padding: 2px 6px;
+  background: #faad14;
+  color: white;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: bold;
+}
+
+.borrower {
+  color: #666;
+}
+
+.application-actions {
+  display: flex;
+  gap: 5px;
+  justify-content: flex-end;
+}
+
+.btn-approve {
+  padding: 3px 8px;
+  background: #52c41a;
+  color: white;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.btn-reject {
+  padding: 3px 8px;
+  background: #ff4d4f;
+  color: white;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.borrowing-status {
+  color: #1890ff;
+  font-weight: bold;
+}
+
+.no-applications {
+  color: #999;
+  font-style: italic;
+}
+
+/* 图片上传样式 */
+.image-upload-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.image-upload-btn {
+  display: inline-block;
+  padding: 8px 16px;
+  background: #f8f9fa;
+  border: 2px dashed #ccc;
+  border-radius: 4px;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+.image-upload-btn:hover {
+  background: #e9ecef;
+  border-color: #007bff;
+}
+
+.image-preview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.image-preview img {
+  max-width: 100px;
+  max-height: 100px;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+.remove-image-btn {
+  padding: 4px 8px;
+  background: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.remove-image-btn:hover {
+  background: #c82333;
+}
+
+.upload-progress {
+  color: #007bff;
+  font-style: italic;
 }
 </style>

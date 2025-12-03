@@ -1,6 +1,8 @@
 package com.example.Community_Shared_Tool_java.service;
 
+import com.example.Community_Shared_Tool_java.entity.BorrowRecord;
 import com.example.Community_Shared_Tool_java.entity.PublishedTool;
+import com.example.Community_Shared_Tool_java.repository.BorrowRecordRepository;
 import com.example.Community_Shared_Tool_java.repository.PublishedToolRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -15,6 +17,9 @@ public class PublishedToolService {
     
     @Autowired
     private PublishedToolRepository publishedToolRepository;
+    
+    @Autowired
+    private BorrowRecordRepository borrowRecordRepository;
     
     // 发布新工具
     @Transactional
@@ -44,6 +49,15 @@ public class PublishedToolService {
     public PublishedTool updateToolStatus(Integer id, String status) {
         PublishedTool tool = publishedToolRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("工具不存在"));
+        
+        // 如果要将工具状态改为非可用状态（如下架），检查是否有正在进行的借用
+        if (!"available".equals(status) && !"unavailable".equals(status)) {
+            List<BorrowRecord> activeBorrowRecords = borrowRecordRepository.findActiveBorrowRecordsByToolId(id);
+            if (!activeBorrowRecords.isEmpty()) {
+                throw new RuntimeException("该工具存在正在进行的借用，无法下架");
+            }
+        }
+        
         tool.setStatus(status);
         return publishedToolRepository.save(tool);
     }
@@ -51,6 +65,12 @@ public class PublishedToolService {
     // 删除工具
     @Transactional
     public void deleteTool(Integer id) {
+        // 检查是否有正在进行的借用
+        List<BorrowRecord> activeBorrowRecords = borrowRecordRepository.findActiveBorrowRecordsByToolId(id);
+        if (!activeBorrowRecords.isEmpty()) {
+            throw new RuntimeException("该工具存在正在进行的借用，无法删除");
+        }
+        
         publishedToolRepository.deleteById(id);
     }
     

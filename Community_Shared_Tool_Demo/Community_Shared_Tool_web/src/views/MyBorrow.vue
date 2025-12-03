@@ -53,9 +53,8 @@
             </span>
           </td>
           <td>
-            <button v-if="record.status === 'borrowing'" @click="handleReturn(record)" class="btn-return">归还</button>
+            <button v-if="record.status === 'borrowing' || record.status === 'overdue'" @click="handleReturn(record)" class="btn-return">归还</button>
             <span v-else-if="record.status === 'returned'" class="status-returned">已归还</span>
-            <span v-else-if="record.status === 'overdue'" class="status-overdue">已逾期</span>
             <span v-else>—</span>
           </td>
         </tr>
@@ -84,10 +83,11 @@ const statusText = {
 }
 
 // API基础URL
-const API_BASE_URL = 'http://localhost:8080/api'
+const API_BASE_URL = '/api'
 
 // 当前登录用户ID（从localStorage动态获取）
-const currentUserId = ref(parseInt(localStorage.getItem('userId')) || 1)
+const userIdStr = localStorage.getItem('userId');
+const currentUserId = ref(userIdStr ? parseInt(userIdStr) : 1)
 
 // 数据状态
 const rawData = ref([])
@@ -133,16 +133,21 @@ const refreshData = async () => {
   try {
     // 调用新的BorrowInfo API获取借用记录
     const response = await axios.get(`${API_BASE_URL}/borrow-infos/borrower/${currentUserId.value}`)
-    rawData.value = response.data.map(record => ({
-      id: record.id,
-      toolName: record.toolName,
-      toolType: record.toolType,
-      borrowTime: record.borrowTime,
-      expectedReturnTime: record.expectedReturnTime,
-      actualReturnTime: record.actualReturnTime,
-      status: record.status,
-      borrowRecord: record
-    }))
+    if (response.data.success) {
+      rawData.value = response.data.data.map(record => ({
+        id: record.id,
+        toolName: record.toolName,
+        toolType: record.toolType,
+        borrowTime: record.borrowTime,
+        expectedReturnTime: record.expectedReturnTime,
+        actualReturnTime: record.actualReturnTime,
+        status: record.status,
+        borrowRecord: record
+      }))
+    } else {
+      console.error('获取借用记录失败：', response.data.message)
+      alert('获取借用记录失败，请重试')
+    }
   } catch (error) {
     console.error('获取借用记录失败：', error)
     alert('获取借用记录失败，请重试')
@@ -186,9 +191,11 @@ const handleReturn = async (record) => {
   if (confirm(`确定归还工具【${record.toolName}】？`)) {
     try {
       const response = await axios.patch(`${API_BASE_URL}/borrow-infos/${record.id}/return`)
-      if (response.status === 200) {
+      if (response.data.success) {
         alert('归还成功！')
         await refreshData()
+      } else {
+        alert('归还失败：' + response.data.message)
       }
     } catch (error) {
       console.error('归还失败：', error)

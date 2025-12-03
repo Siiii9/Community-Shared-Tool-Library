@@ -7,7 +7,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @RestController
@@ -26,9 +28,19 @@ public class BorrowInfoController {
     
     // 获取用户的借用记录
     @GetMapping("/borrower/{borrowerId}")
-    public ResponseEntity<List<BorrowInfo>> getBorrowInfosByBorrowerId(@PathVariable Integer borrowerId) {
-        List<BorrowInfo> borrowInfos = borrowInfoService.getBorrowInfosByBorrowerId(borrowerId);
-        return ResponseEntity.ok(borrowInfos);
+    public ResponseEntity<Map<String, Object>> getBorrowInfosByBorrowerId(@PathVariable Integer borrowerId) {
+        try {
+            List<BorrowInfo> borrowInfos = borrowInfoService.getBorrowInfosByBorrowerId(borrowerId);
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("data", borrowInfos);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
     }
     
     // 根据ID获取借用记录
@@ -41,9 +53,20 @@ public class BorrowInfoController {
     
     // 归还工具
     @PatchMapping("/{id}/return")
-    public ResponseEntity<BorrowInfo> returnTool(@PathVariable Integer id) {
-        BorrowInfo updatedBorrowInfo = borrowInfoService.returnTool(id);
-        return ResponseEntity.ok(updatedBorrowInfo);
+    public ResponseEntity<Map<String, Object>> returnTool(@PathVariable Integer id) {
+        try {
+            BorrowInfo updatedBorrowInfo = borrowInfoService.returnTool(id);
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("data", updatedBorrowInfo);
+            response.put("message", "工具归还成功");
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+        }
     }
     
     // 更新借用记录
@@ -63,5 +86,40 @@ public class BorrowInfoController {
             @RequestParam(required = false) String status) {
         List<BorrowInfo> borrowInfos = borrowInfoService.searchBorrowInfos(borrowerId, toolName, status);
         return ResponseEntity.ok(borrowInfos);
+    }
+    
+    // 删除借用记录
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Map<String, Object>> deleteBorrowInfo(@PathVariable Integer id) {
+        try {
+            borrowInfoService.deleteBorrowInfo(id);
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "借用记录删除成功");
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+        }
+    }
+    
+    // 确认归还工具（所有者确认）
+    @PatchMapping("/{id}/confirm-return")
+    public ResponseEntity<Map<String, Object>> confirmReturn(@PathVariable Integer id) {
+        try {
+            BorrowInfo updatedBorrowInfo = borrowInfoService.confirmReturn(id);
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("data", updatedBorrowInfo);
+            response.put("message", "工具归还确认成功");
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+        }
     }
 }

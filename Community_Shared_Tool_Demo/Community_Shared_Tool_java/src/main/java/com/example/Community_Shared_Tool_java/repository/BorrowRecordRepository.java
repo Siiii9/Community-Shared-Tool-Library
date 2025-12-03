@@ -32,4 +32,7 @@ public interface BorrowRecordRepository extends JpaRepository<BorrowRecord, Inte
     // 查询特定工具当前正在借用的记录
     @Query("SELECT br FROM BorrowRecord br WHERE br.toolId = :toolId AND br.status IN ('APPROVED', 'TAKEN')")
     List<BorrowRecord> findActiveBorrowRecordsByToolId(@Param("toolId") Integer toolId);
+    
+    // 根据工具ID和借用人ID查询借用记录
+    List<BorrowRecord> findByToolIdAndBorrowerId(Integer toolId, Integer borrowerId);
 }
