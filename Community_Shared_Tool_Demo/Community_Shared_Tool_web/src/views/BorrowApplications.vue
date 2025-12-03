@@ -164,7 +164,7 @@ const filteredApplications = computed(() => {
 const refreshApplications = async () => {
   try {
     // 模拟当前用户ID（实际项目中应从登录状态获取）
-    const currentUserId = 2 // 工具所有者ID
+    const currentUserId = parseInt(localStorage.getItem('userId')) || 2 // 工具所有者ID
     
     const response = await axios.get(`/api/borrow/applications/${currentUserId}`)
     if (response.data.success) {

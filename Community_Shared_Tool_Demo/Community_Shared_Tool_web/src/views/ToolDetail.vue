@@ -151,8 +151,8 @@ const submitApply = async () => {
   }
 
   try {
-    // 模拟用户ID和工具所有者ID（实际项目中应从登录状态获取）
-    const currentUserId = 1 // 当前用户ID
+    // 动态获取用户ID和工具所有者ID
+    const currentUserId = parseInt(localStorage.getItem('userId')) || 1 // 当前用户ID
     const toolOwnerId = 2 // 工具所有者ID
 
     const response = await axios.post('/api/borrow/apply', {

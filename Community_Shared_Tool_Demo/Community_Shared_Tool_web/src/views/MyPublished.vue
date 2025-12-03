@@ -126,8 +126,8 @@ const statusText = {
 // API基础URL
 const API_BASE_URL = 'http://localhost:8084/api'
 
-// 当前登录用户ID（模拟，实际应该从登录状态获取）
-const currentUserId = ref(1)
+// 当前登录用户ID（从localStorage动态获取）
+const currentUserId = ref(parseInt(localStorage.getItem('userId')) || 1)
 
 // 数据状态
 const rawData = ref([])
@@ -284,7 +284,42 @@ const sortData = (prop) => {
 }
 
 const exportPublishedList = () => {
-  alert('功能待实现：导出CSV')
+  if (rawData.value.length === 0) {
+    alert('没有数据可导出')
+    return
+  }
+  
+  // CSV表头
+  const headers = ['发布时间', '工具名称', '工具类型', '当前位置', '状态', '描述', '最大借用天数']
+  
+  // 构建CSV内容
+  const csvContent = [
+    headers.join(','), // 表头
+    ...rawData.value.map(tool => [
+      formatDate(tool.publishTime),
+      `"${tool.toolName}"`,
+      `"${tool.toolType || ''}"`,
+      `"${tool.location || ''}"`,
+      `"${statusText[tool.status] || ''}"`,
+      `"${tool.description || ''}"`,
+      tool.borrowDaysLimit || ''
+    ].join(','))
+  ].join('\n')
+  
+  // 创建Blob对象并下载
+  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })
+  const link = document.createElement('a')
+  const url = URL.createObjectURL(blob)
+  
+  link.setAttribute('href', url)
+  link.setAttribute('download', `发布记录_${new Date().toISOString().split('T')[0]}.csv`)
+  link.style.visibility = 'hidden'
+  
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  
+  alert('导出成功！')
 }
 
 const openToolForm = (tool = null) => {

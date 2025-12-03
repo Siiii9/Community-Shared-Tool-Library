@@ -26,6 +26,8 @@ const handleLogin = async () => {
         if (response.data.success) {
             console.log('登录成功');
             localStorage.setItem('userToken', response.data.token); // 存储后端返回的 token
+            localStorage.setItem('userId', response.data.userId); // 存储用户ID
+            localStorage.setItem('username', response.data.username); // 存储用户名
             router.push('/main');
         } else {
             errorMessage.value = response.data.message || '登录失败';

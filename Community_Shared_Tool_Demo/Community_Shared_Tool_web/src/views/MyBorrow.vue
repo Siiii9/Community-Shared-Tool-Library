@@ -86,8 +86,8 @@ const statusText = {
 // API基础URL
 const API_BASE_URL = 'http://localhost:8080/api'
 
-// 当前登录用户ID（模拟，实际应该从登录状态获取）
-const currentUserId = ref(1)
+// 当前登录用户ID（从localStorage动态获取）
+const currentUserId = ref(parseInt(localStorage.getItem('userId')) || 1)
 
 // 数据状态
 const rawData = ref([])
