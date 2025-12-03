@@ -10,9 +10,13 @@
     </div>
 
     <div class="detail-content">
-      <!-- 图片展示（模拟） -->
+      <!-- 图片展示 -->
       <div class="image-section">
-        <img :src="toolImage" alt="工具图片" class="main-image" />
+        <img v-if="tool?.imageUrl" :src="getFullImageUrl(tool.imageUrl)" alt="工具图片" class="main-image" />
+        <div v-else class="no-image-placeholder">
+          <span class="material-icons">photo_camera</span>
+          <p>暂无图片</p>
+        </div>
       </div>
 
       <!-- 工具介绍 -->
@@ -97,9 +101,9 @@ const loadToolById = async (id: string) => {
         status: response.data.status,
         location: response.data.location,
         description: response.data.description,
-        borrowDaysLength: response.data.borrowDaysLimit, // 修复字段名
-        borrowDaysLimit: response.data.borrowDaysLimit,
-        ownerId: response.data.ownerId // 添加 ownerId
+        borrowDaysLimit: response.data.borrowDaysLimit, // 借用天数限制
+        ownerId: response.data.ownerId, // 工具所有者ID
+        imageUrl: response.data.imageUrl  // 工具图片URL
       }
     }
   } catch (error) {
@@ -108,8 +112,17 @@ const loadToolById = async (id: string) => {
   }
 }
 
-// 模拟图片
-const toolImage = ref('/images/tool-placeholder.jpg')
+// 获取完整图片URL
+const getFullImageUrl = (imageUrl: string) => {
+  if (!imageUrl) return ''
+  // 如果已经是完整URL，直接返回
+  if (imageUrl.startsWith('http')) {
+    return imageUrl
+  }
+  // 如果是相对路径，添加后端服务器地址
+  const baseUrl = 'http://localhost:8084'
+  return baseUrl + imageUrl
+}
 
 onMounted(async () => {
   await loadToolById(route.params.id as string)
@@ -255,6 +268,27 @@ const submitApply = async () => {
   object-fit: cover;
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.no-image-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 300px;
+  background: #f5f5f5;
+  border-radius: 8px;
+  color: #999;
+}
+
+.no-image-placeholder .material-icons {
+  font-size: 48px;
+  margin-bottom: 10px;
+}
+
+.no-image-placeholder p {
+  margin: 0;
+  font-size: 16px;
 }
 
 .description {

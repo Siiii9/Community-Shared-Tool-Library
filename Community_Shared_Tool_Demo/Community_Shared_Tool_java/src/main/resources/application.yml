@@ -11,5 +11,8 @@ spring:
         physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
     show-sql: true  # 显示SQL日志，便于调试
     database-platform: org.hibernate.dialect.MySQLDialect
+  web:
+    resources:
+      static-locations: classpath:/static/,classpath:/public/,file:uploads/
 server:
   port: 8084
