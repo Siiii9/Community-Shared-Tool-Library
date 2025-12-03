@@ -132,6 +132,7 @@ const currentUserId = ref(1)
 // 数据状态
 const rawData = ref([])
 const filter = ref({ toolName: '', status: '' })
+const appliedFilter = ref({ toolName: '', status: '' })
 const sort = ref({ prop: null, order: null })
 const pagination = ref({ currentPage: 1, pageSize: 5 })
 
@@ -153,8 +154,8 @@ const formData = ref({
 // 计算属性
 const filteredData = computed(() => {
   return rawData.value.filter(item => {
-    const nameMatch = item.toolName.includes(filter.value.toolName)
-    const statusMatch = filter.value.status ? item.status === filter.value.status : true
+    const nameMatch = item.toolName.includes(appliedFilter.value.toolName)
+    const statusMatch = appliedFilter.value.status ? item.status === appliedFilter.value.status : true
     return nameMatch && statusMatch
   })
 })
@@ -207,7 +208,8 @@ const saveTool = async () => {
       response = await fetch(`${API_BASE_URL}/published-tools/${formData.value.id}`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'X-User-Id': currentUserId.value.toString()
         },
         body: JSON.stringify(formData.value)
       })
@@ -238,7 +240,10 @@ const saveTool = async () => {
 const deleteTool = async (id) => {
   try {
     const response = await fetch(`${API_BASE_URL}/published-tools/${id}`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers: {
+        'X-User-Id': currentUserId.value.toString()
+      }
     })
 
     if (!response.ok) {
@@ -259,11 +264,13 @@ const refreshData = async () => {
 }
 
 const applyFilter = () => {
+  appliedFilter.value = { ...filter.value }
   pagination.value.currentPage = 1
 }
 
 const resetFilter = () => {
   filter.value = { toolName: '', status: '' }
+  appliedFilter.value = { toolName: '', status: '' }
   pagination.value.currentPage = 1
 }
 

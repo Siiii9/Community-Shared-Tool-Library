@@ -41,7 +41,17 @@ public class PublishedToolController {
     
     // 更新工具信息
     @PutMapping("/{id}")
-    public ResponseEntity<PublishedTool> updateTool(@PathVariable Integer id, @RequestBody PublishedTool tool) {
+    public ResponseEntity<PublishedTool> updateTool(@PathVariable Integer id, @RequestBody PublishedTool tool, @RequestHeader("X-User-Id") Integer userId) {
+        // 检查权限：用户只能编辑自己发布的工具
+        Optional<PublishedTool> existingTool = publishedToolService.getToolById(id);
+        if (existingTool.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        
+        if (!existingTool.get().getOwnerId().equals(userId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        
         // 确保ID一致
         tool.setId(id);
         PublishedTool updatedTool = publishedToolService.updateTool(tool);
@@ -57,7 +67,17 @@ public class PublishedToolController {
     
     // 删除工具
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteTool(@PathVariable Integer id) {
+    public ResponseEntity<Void> deleteTool(@PathVariable Integer id, @RequestHeader("X-User-Id") Integer userId) {
+        // 检查权限：用户只能删除自己发布的工具
+        Optional<PublishedTool> existingTool = publishedToolService.getToolById(id);
+        if (existingTool.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        
+        if (!existingTool.get().getOwnerId().equals(userId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        
         publishedToolService.deleteTool(id);
         return ResponseEntity.noContent().build();
     }
