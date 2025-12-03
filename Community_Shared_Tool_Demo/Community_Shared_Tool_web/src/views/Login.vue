@@ -1,6 +1,7 @@
 <script setup>
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
+import { useUserStore } from '@/stores/userStore';
 import axios from 'axios';
 
 // 创建变量用于表单输入
@@ -10,6 +11,7 @@ const errorMessage = ref('');
 const loading = ref(false);
 
 const router = useRouter();
+const userStore = useUserStore();
 
 // 登录处理函数
 const handleLogin = async () => {
@@ -25,10 +27,28 @@ const handleLogin = async () => {
         console.log('Response:', response); // 添加调试日志
         if (response.data.success) {
             console.log('登录成功');
-            localStorage.setItem('userToken', response.data.token); // 存储后端返回的 token
-            localStorage.setItem('userId', response.data.userId); // 存储用户ID
-            localStorage.setItem('username', response.data.username); // 存储用户名
-            router.push('/main');
+            const { token, userId, username: loginUsername, isAdmin } = response.data;
+            
+            // 保存到localStorage
+            localStorage.setItem('userToken', token);
+            localStorage.setItem('userId', userId);
+            localStorage.setItem('username', loginUsername);
+            localStorage.setItem('isAdmin', isAdmin ? 'true' : 'false');
+            
+            // 保存到store
+            userStore.login({
+              token,
+              userId,
+              username: loginUsername,
+              isAdmin
+            });
+            
+            // 管理员跳转到用户管理页面，普通用户跳转到工具地图
+            if (isAdmin) {
+              router.push('/admin/users');
+            } else {
+              router.push('/main');
+            }
         } else {
             errorMessage.value = response.data.message || '登录失败';
         }

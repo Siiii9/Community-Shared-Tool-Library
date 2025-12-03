@@ -101,14 +101,22 @@ const loadToolById = async (id: string) => {
         status: response.data.status,
         location: response.data.location,
         description: response.data.description,
-        borrowDaysLimit: response.data.borrowDaysLimit, // 借用天数限制
-        ownerId: response.data.ownerId, // 工具所有者ID
-        imageUrl: response.data.imageUrl  // 工具图片URL
+        borrowDaysLimit: response.data.borrowDaysLimit,
+        ownerId: response.data.ownerId,
+        imageUrl: response.data.imageUrl
       }
+    } else {
+      alert('获取工具详情失败：服务器返回空数据')
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('获取工具详情失败:', error)
-    alert('获取工具详情失败，请重试')
+    if (error.response?.status === 404) {
+      alert('工具不存在')
+    } else if (error.response?.status === 500) {
+      alert('服务器内部错误，请稍后重试')
+    } else {
+      alert('获取工具详情失败，请检查网络连接')
+    }
   }
 }
 
@@ -125,7 +133,12 @@ const getFullImageUrl = (imageUrl: string) => {
 }
 
 onMounted(async () => {
-  await loadToolById(route.params.id as string)
+  const id = route.params.id as string
+  if (id) {
+    await loadToolById(id)
+  } else {
+    alert('无效的工具ID')
+  }
 })
 
 // 跳转到社区聊天页

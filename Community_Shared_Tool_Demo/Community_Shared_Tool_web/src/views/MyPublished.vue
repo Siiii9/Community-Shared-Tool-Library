@@ -1,10 +1,11 @@
-<!-- views/MyPublished.vue -->
+<!-- src/views/MyPublished.vue -->
 <template>
   <div class="my-published">
     <div class="operation-buttons">
       <button @click="refreshData">刷新</button>
       <button @click="exportPublishedList">导出发布记录</button>
-      <button @click="openToolForm()" class="btn-primary">发布新工具</button>
+      <!-- 🔹 修改：按钮文字为黑色，无悬停变色 -->
+      <button @click="openAddToolDialog" class="add-tool-btn">发布新工具</button>
     </div>
 
     <div class="filter-form">
@@ -28,8 +29,7 @@
         <tr>
           <th @click="sortData('publishTime')">发布时间</th>
           <th>工具名称</th>
-          <th>类型</th>
-          <th>当前位置</th>
+          <th>位置</th>
           <th>状态</th>
           <th>操作</th>
         </tr>
@@ -38,7 +38,6 @@
         <tr v-for="(tool, index) in paginatedData" :key="tool.id">
           <td>{{ formatDate(tool.publishTime) }}</td>
           <td>{{ tool.toolName }}</td>
-          <td>{{ tool.toolType }}</td>
           <td>{{ tool.location }}</td>
           <td>
             <span
@@ -53,7 +52,7 @@
           </td>
           <td>
             <button @click="editTool(tool)" class="btn-edit">编辑</button>
-            <button @click="removeTool(tool)" class="btn-delete">下架</button>
+            <button @click="deleteTool(tool.id)" class="btn-delete">删除</button>
           </td>
         </tr>
       </tbody>
@@ -67,71 +66,64 @@
       <button @click="changePage(maxPage)" :disabled="pagination.currentPage === maxPage">尾页</button>
     </div>
 
-    <!-- 工具表单弹窗 -->
-    <div v-if="isFormVisible" class="modal-overlay">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3>{{ formTitle }}</h3>
-          <button @click="closeToolForm" class="close-btn">&times;</button>
-        </div>
-        <div class="modal-body">
-          <form @submit.prevent="saveTool">
-            <div class="form-group">
-              <label for="form-toolName">工具名称</label>
-              <input v-model="formData.toolName" id="form-toolName" required />
+    <!-- 发布新工具对话框 -->
+    <div v-if="showAddToolDialog" class="add-tool-dialog-overlay">
+      <div class="add-tool-dialog">
+        <h3>{{ newTool.id ? '编辑工具' : '发布新工具' }}</h3>
+        <form @submit.prevent="saveTool">
+          <div class="form-group">
+            <label for="newToolName">工具名称：</label>
+            <input 
+              id="newToolName" 
+              v-model="newTool.toolName" 
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label for="newDescription">描述：</label>
+            <textarea 
+              id="newDescription" 
+              v-model="newTool.description" 
+              rows="4"
+            ></textarea>
+          </div>
+          <div class="form-group">
+            <label for="newLocation">位置：</label>
+            <input 
+              id="newLocation" 
+              v-model="newTool.location" 
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label for="newBorrowDaysLimit">最大借用天数：</label>
+            <input 
+              id="newBorrowDaysLimit" 
+              v-model="newTool.borrowDaysLimit" 
+              type="number" 
+              min="1" 
+              max="30" 
+              required
+            />
+          </div>
+          <!-- 🔹 恢复：添加照片功能 -->
+          <div class="form-group">
+            <label for="newImageUrl">工具图片：</label>
+            <input 
+              id="newImageUrl" 
+              type="file" 
+              accept="image/*"
+              @change="handleImageUpload"
+            />
+            <div v-if="newTool.imageUrl" class="preview-image">
+              <img :src="newTool.imageUrl" alt="预览" />
             </div>
-            <div class="form-group">
-              <label for="form-toolType">工具类型</label>
-              <input v-model="formData.toolType" id="form-toolType" required />
-            </div>
-            <div class="form-group">
-              <label for="form-description">描述</label>
-              <textarea v-model="formData.description" id="form-description" rows="3"></textarea>
-            </div>
-            <div class="form-group">
-              <label for="form-location">位置</label>
-              <input v-model="formData.location" id="form-location" required />
-            </div>
-            <div class="form-group">
-              <label for="form-status">状态</label>
-              <select v-model="formData.status" id="form-status">
-                <option value="available">可借用</option>
-                <option value="maintenance">维护中</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="form-borrowDaysLimit">最大借用天数</label>
-              <input v-model.number="formData.borrowDaysLimit" type="number" id="form-borrowDaysLimit" min="1" required />
-            </div>
-            <div class="form-group">
-              <label>工具图片</label>
-              <div class="image-upload-container">
-                <input 
-                  type="file" 
-                  id="tool-image" 
-                  accept="image/*" 
-                  @change="handleImageUpload" 
-                  style="display: none"
-                />
-                <label for="tool-image" class="image-upload-btn">
-                  <span v-if="!formData.imageUrl">选择图片</span>
-                  <span v-else>更换图片</span>
-                </label>
-                <div v-if="formData.imageUrl" class="image-preview">
-                  <img :src="formData.imageUrl" alt="工具图片预览" />
-                  <button type="button" @click="removeImage" class="remove-image-btn">删除</button>
-                </div>
-                <div v-if="uploading" class="upload-progress">
-                  <span>上传中...</span>
-                </div>
-              </div>
-            </div>
-            <div class="form-actions">
-              <button type="submit" class="btn-primary">保存</button>
-              <button type="button" @click="closeToolForm">取消</button>
-            </div>
-          </form>
-        </div>
+          </div>
+          <div class="dialog-buttons">
+            <button type="button" @click="cancelAddTool" class="cancel-btn">取消</button>
+            <button type="submit" class="submit-btn">保存</button>
+          </div>
+        </form>
       </div>
     </div>
   </div>
@@ -139,48 +131,41 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import axios from 'axios'
 
+// 状态映射
 const statusText = {
   available: '可借用',
   borrowed: '已借出',
   maintenance: '维护中'
 }
 
-// API基础URL
-const API_BASE_URL = 'http://localhost:8084/api'
-
-// 当前登录用户ID（从localStorage动态获取）
-const currentUserId = ref(parseInt(localStorage.getItem('userId')) || 1)
+// 当前登录用户ID
+const currentUserId = parseInt(localStorage.getItem('userId') || '1')
 
 // 数据状态
 const rawData = ref([])
 const filter = ref({ toolName: '', status: '' })
-const appliedFilter = ref({ toolName: '', status: '' })
 const sort = ref({ prop: null, order: null })
 const pagination = ref({ currentPage: 1, pageSize: 5 })
 
-// 表单状态
-const isFormVisible = ref(false)
-const formTitle = ref('发布新工具')
-const uploading = ref(false)
-const formData = ref({
-  id: null,
+// 变量：控制对话框显示
+const showAddToolDialog = ref(false)
+const newTool = ref({
+  // 🔹 修复：删除 toolType 字段
   toolName: '',
-  toolType: '',
   description: '',
   location: '',
   status: 'available',
-  borrowDaysLimit: 7, // 默认最大借用天数为7天
+  borrowDaysLimit: 7,
   imageUrl: '',
-  ownerId: currentUserId.value,
-  publishTime: new Date().toISOString()
+  id: null // 用于区分新增和编辑
 })
 
-// 计算属性
 const filteredData = computed(() => {
   return rawData.value.filter(item => {
-    const nameMatch = item.toolName.includes(appliedFilter.value.toolName)
-    const statusMatch = appliedFilter.value.status ? item.status === appliedFilter.value.status : true
+    const nameMatch = item.toolName.includes(filter.value.toolName)
+    const statusMatch = filter.value.status ? item.status === filter.value.status : true
     return nameMatch && statusMatch
   })
 })
@@ -200,8 +185,8 @@ const paginatedData = computed(() => {
 
 const maxPage = computed(() => Math.ceil(filteredData.value.length / pagination.value.pageSize))
 
-// 工具函数
 const formatDate = (isoStr) => {
+  if (!isoStr) return '—'
   return new Date(isoStr).toLocaleString('zh-CN', {
     year: 'numeric',
     month: '2-digit',
@@ -211,91 +196,22 @@ const formatDate = (isoStr) => {
   })
 }
 
-// API请求函数
-const fetchPublishedTools = async () => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/published-tools/owner/${currentUserId.value}`)
-    if (!response.ok) {
-      throw new Error('获取工具列表失败')
-    }
-    rawData.value = await response.json()
-  } catch (error) {
-    console.error('获取工具列表出错:', error)
-    alert('获取工具列表失败，请重试')
-  }
-}
-
-const saveTool = async () => {
-  try {
-    let response
-    if (formData.value.id) {
-      // 更新工具
-      response = await fetch(`${API_BASE_URL}/published-tools/${formData.value.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-User-Id': currentUserId.value.toString()
-        },
-        body: JSON.stringify(formData.value)
-      })
-    } else {
-      // 发布新工具
-      response = await fetch(`${API_BASE_URL}/published-tools`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(formData.value)
-      })
-    }
-
-    if (!response.ok) {
-      throw new Error('保存工具失败')
-    }
-
-    closeToolForm()
-    await fetchPublishedTools()
-    alert('保存成功！')
-  } catch (error) {
-    console.error('保存工具出错:', error)
-    alert('保存失败，请重试')
-  }
-}
-
-const deleteTool = async (id) => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/published-tools/${id}`, {
-      method: 'DELETE',
-      headers: {
-        'X-User-Id': currentUserId.value.toString()
-      }
-    })
-
-    if (!response.ok) {
-      throw new Error('删除工具失败')
-    }
-
-    await fetchPublishedTools()
-    alert('删除成功！')
-  } catch (error) {
-    console.error('删除工具出错:', error)
-    alert('删除失败，请重试')
-  }
-}
-
-// 页面操作函数
 const refreshData = async () => {
-  await fetchPublishedTools()
+  try {
+    const response = await axios.get(`/api/published-tools/owner/${currentUserId}`)
+    rawData.value = response.data
+  } catch (error) {
+    console.error('获取发布工具列表失败：', error)
+    alert('获取发布工具列表失败，请重试')
+  }
 }
 
 const applyFilter = () => {
-  appliedFilter.value = { ...filter.value }
   pagination.value.currentPage = 1
 }
 
 const resetFilter = () => {
   filter.value = { toolName: '', status: '' }
-  appliedFilter.value = { toolName: '', status: '' }
   pagination.value.currentPage = 1
 }
 
@@ -309,76 +225,123 @@ const sortData = (prop) => {
 }
 
 const exportPublishedList = () => {
-  if (rawData.value.length === 0) {
-    alert('没有数据可导出')
-    return
-  }
-  
-  // CSV表头
-  const headers = ['发布时间', '工具名称', '工具类型', '当前位置', '状态', '描述', '最大借用天数']
-  
-  // 构建CSV内容
   const csvContent = [
-    headers.join(','), // 表头
-    ...rawData.value.map(tool => [
-      formatDate(tool.publishTime),
-      `"${tool.toolName}"`,
-      `"${tool.toolType || ''}"`,
-      `"${tool.location || ''}"`,
-      `"${statusText[tool.status] || ''}"`,
-      `"${tool.description || ''}"`,
-      tool.borrowDaysLimit || ''
-    ].join(','))
+    '发布时间,工具名称,位置,状态',
+    ...sortedData.value.map(item =>
+      `"${formatDate(item.publishTime)}","${item.toolName}","${item.location}","${statusText[item.status]}"`
+    )
   ].join('\n')
-  
-  // 创建Blob对象并下载
-  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
   const link = document.createElement('a')
-  const url = URL.createObjectURL(blob)
-  
-  link.setAttribute('href', url)
-  link.setAttribute('download', `发布记录_${new Date().toISOString().split('T')[0]}.csv`)
-  link.style.visibility = 'hidden'
-  
-  document.body.appendChild(link)
+  link.href = URL.createObjectURL(blob)
+  link.download = `my_published_tools_${new Date().toISOString().slice(0, 10)}.csv`
   link.click()
-  document.body.removeChild(link)
-  
-  alert('导出成功！')
 }
 
-const openToolForm = (tool = null) => {
-  if (tool) {
-    formTitle.value = '编辑工具'
-    formData.value = { ...tool }
-  } else {
-    formTitle.value = '发布新工具'
-    formData.value = {
-      id: null,
-      toolName: '',
-      toolType: '',
-      description: '',
-      location: '',
-      status: 'available',
-      borrowDaysLimit: 7, // 默认最大借用天数为7天
-      ownerId: currentUserId.value,
-      publishTime: new Date().toISOString()
+// 🔹 修复：函数名改为 openAddToolDialog
+const openAddToolDialog = () => {
+  newTool.value = {
+    toolName: '',
+    description: '',
+    location: '',
+    status: 'available',
+    borrowDaysLimit: 7,
+    imageUrl: '',
+    id: null
+  }
+  showAddToolDialog.value = true
+}
+
+// 隐藏发布新工具对话框
+const cancelAddTool = () => {
+  showAddToolDialog.value = false
+}
+
+// 处理图片上传
+const handleImageUpload = (event) => {
+  const file = event.target.files[0]
+  if (file) {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      newTool.value.imageUrl = e.target.result
+    }
+    reader.readAsDataURL(file)
+  }
+}
+
+// 保存工具（新增或编辑）
+const saveTool = async () => {
+  try {
+    newTool.value.ownerId = currentUserId
+    let response
+    
+    // 🔹 修复：创建一个干净的工具对象，只包含后端需要的字段
+    const toolData = {
+      toolName: newTool.value.toolName,
+      description: newTool.value.description,
+      location: newTool.value.location,
+      status: newTool.value.status,
+      borrowDaysLimit: newTool.value.borrowDaysLimit,
+      imageUrl: newTool.value.imageUrl,
+      ownerId: currentUserId
+    }
+    
+    if (newTool.value.id) {
+      // 编辑
+      toolData.id = newTool.value.id
+      response = await axios.put(`/api/published-tools/${newTool.value.id}`, toolData)
+      const index = rawData.value.findIndex(item => item.id === newTool.value.id)
+      if (index !== -1) {
+        rawData.value[index] = response.data
+      }
+      alert('✅ 工具编辑成功！')
+    } else {
+      // 新增
+      response = await axios.post('/api/published-tools', toolData)
+      rawData.value.push(response.data)
+      alert('✅ 新工具发布成功！')
+    }
+    showAddToolDialog.value = false
+  } catch (error) {
+    console.error('保存工具失败：', error)
+    if (error.response?.data?.message) {
+      alert('保存失败：' + error.response.data.message)
+    } else {
+      alert('保存工具失败，请重试')
     }
   }
-  isFormVisible.value = true
 }
 
-const closeToolForm = () => {
-  isFormVisible.value = false
-}
-
+// 编辑工具
 const editTool = (tool) => {
-  openToolForm(tool)
+  // 🔹 修复：不包含 toolType 字段
+  newTool.value = {
+    id: tool.id,
+    toolName: tool.toolName,
+    description: tool.description,
+    location: tool.location,
+    status: tool.status,
+    borrowDaysLimit: tool.borrowDaysLimit,
+    imageUrl: tool.imageUrl
+  }
+  showAddToolDialog.value = true
 }
 
-const removeTool = (tool) => {
-  if (confirm(`确定下架【${tool.toolName}】？`)) {
-    deleteTool(tool.id)
+// 删除工具
+const deleteTool = async (id) => {
+  if (confirm('确定删除该工具？')) {
+    try {
+      await axios.delete(`/api/published-tools/${id}`, {
+        headers: {
+          'X-User-Id': currentUserId
+        }
+      })
+      rawData.value = rawData.value.filter(item => item.id !== id)
+      alert('删除成功！')
+    } catch (error) {
+      console.error('删除工具失败：', error)
+      alert('删除工具失败，请重试')
+    }
   }
 }
 
@@ -388,60 +351,8 @@ const changePage = (page) => {
   }
 }
 
-// 图片上传处理函数
-const handleImageUpload = async (event) => {
-  const file = event.target.files[0]
-  if (!file) return
-
-  // 检查文件类型
-  if (!file.type.startsWith('image/')) {
-    alert('请选择图片文件')
-    return
-  }
-
-  // 检查文件大小（限制为5MB）
-  if (file.size > 5 * 1024 * 1024) {
-    alert('图片大小不能超过5MB')
-    return
-  }
-
-  uploading.value = true
-  
-  try {
-    // 创建FormData对象
-    const uploadFormData = new FormData()
-    uploadFormData.append('image', file)
-    
-    // 上传图片到后端
-    const response = await fetch(`${API_BASE_URL}/upload/image`, {
-      method: 'POST',
-      body: uploadFormData
-    })
-    
-    if (!response.ok) {
-      throw new Error('图片上传失败')
-    }
-    
-    const result = await response.json()
-    formData.value.imageUrl = result.imageUrl
-    
-  } catch (error) {
-    console.error('图片上传出错:', error)
-    alert('图片上传失败，请重试')
-  } finally {
-    uploading.value = false
-    // 重置文件输入
-    event.target.value = ''
-  }
-}
-
-const removeImage = () => {
-  formData.value.imageUrl = ''
-}
-
-// 组件挂载时加载数据
 onMounted(() => {
-  fetchPublishedTools()
+  refreshData()
 })
 </script>
 
@@ -450,37 +361,7 @@ onMounted(() => {
   padding: 20px;
 }
 
-.btn-primary {
-  background: #000000 !important;
-  color: white !important;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-weight: bold;
-}
-
-.btn-edit {
-  background: #ffc107;
-  color: #212529;
-  border: none;
-  padding: 4px 8px;
-  border-radius: 4px;
-  margin-right: 5px;
-  cursor: pointer;
-}
-
-.btn-delete {
-  background: #dc3545;
-  color: white;
-  border: none;
-  padding: 4px 8px;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-/* 复用 MyBorrow 的样式 */
-.operation-buttons button:not(.btn-primary),
+.operation-buttons button,
 .filter-form button {
   margin-right: 10px;
   padding: 6px 12px;
@@ -488,6 +369,22 @@ onMounted(() => {
   border-radius: 4px;
   background: #f8f9fa;
   cursor: pointer;
+}
+
+.add-tool-btn {
+  /* 🔹 修复：按钮文字为黑色，无悬停变色 */
+  color: black;
+  background: white;
+  border: 1px solid #ccc;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.add-tool-btn:hover {
+  /* 🔹 修复：移除悬停变色 */
+  background: white;
+  color: black;
 }
 
 .filter-form {
@@ -521,11 +418,152 @@ onMounted(() => {
 .data-table th {
   background: #f5f7fa;
   cursor: pointer;
+  user-select: none;
 }
 
-.status-available { color: #28a745; }
-.status-borrowed { color: #17a2b8; }
-.status-maintenance { color: #ffc107; }
+.status-available {
+  background: #52c41a;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.status-borrowed {
+  background: #faad14;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.status-maintenance {
+  background: #722ed1;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.btn-edit {
+  padding: 4px 8px;
+  background: #1890ff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.btn-edit:hover {
+  background: #40a9ff;
+}
+
+.btn-delete {
+  padding: 4px 8px;
+  background: #ff4d4f;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.btn-delete:hover {
+  background: #dc3545;
+}
+
+.add-tool-dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.add-tool-dialog {
+  background: white;
+  padding: 30px;
+  border-radius: 10px;
+  width: 90%;
+  max-width: 500px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  overflow-y: auto;
+  max-height: 80vh;
+}
+
+.add-tool-dialog h3 {
+  margin-bottom: 20px;
+  color: #2c3e50;
+  text-align: center;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: bold;
+  color: #333;
+}
+
+.form-group input,
+.form-group textarea,
+.form-group select {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.form-group textarea {
+  resize: vertical;
+}
+
+.preview-image {
+  margin-top: 10px;
+  text-align: center;
+}
+
+.preview-image img {
+  max-width: 100%;
+  max-height: 200px;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+.dialog-buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.cancel-btn {
+  padding: 10px 20px;
+  border: 1px solid #ddd;
+  background: white;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.submit-btn {
+  padding: 10px 20px;
+  background: #1890ff;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.submit-btn:hover {
+  background: #40a9ff;
+  cursor: pointer;
+  transition: all 0.3s;
+}
 
 .pagination {
   margin-top: 20px;
@@ -535,133 +573,5 @@ onMounted(() => {
 .pagination button {
   margin: 0 5px;
   padding: 6px 12px;
-}
-
-/* 模态框样式 */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-}
-
-.modal-content {
-  background: white;
-  padding: 20px;
-  border-radius: 8px;
-  width: 90%;
-  max-width: 500px;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
-
-.modal-header h3 {
-  margin: 0;
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 24px;
-  cursor: pointer;
-}
-
-.form-group {
-  margin-bottom: 15px;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 5px;
-  font-weight: bold;
-}
-
-.form-group input,
-.form-group textarea,
-.form-group select {
-  width: 100%;
-  padding: 8px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-}
-
-.form-actions {
-  margin-top: 20px;
-  text-align: right;
-}
-
-.form-actions button {
-  margin-left: 10px;
-  padding: 8px 16px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-/* 图片上传样式 */
-.image-upload-container {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.image-upload-btn {
-  display: inline-block;
-  padding: 8px 16px;
-  background: #f8f9fa;
-  border: 2px dashed #ccc;
-  border-radius: 4px;
-  cursor: pointer;
-  text-align: center;
-  transition: all 0.3s ease;
-}
-
-.image-upload-btn:hover {
-  background: #e9ecef;
-  border-color: #007bff;
-}
-
-.image-preview {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 10px;
-}
-
-.image-preview img {
-  max-width: 100px;
-  max-height: 100px;
-  border-radius: 4px;
-  object-fit: cover;
-}
-
-.remove-image-btn {
-  padding: 4px 8px;
-  background: #dc3545;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
-}
-
-.remove-image-btn:hover {
-  background: #c82333;
-}
-
-.upload-progress {
-  color: #007bff;
-  font-style: italic;
 }
 </style>

@@ -6,7 +6,7 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
     hibernate:
-      ddl-auto: update  # 首次运行可改成create自动建表，之后改回update
+      ddl-auto: create  # 首次运行可改成create自动建表，之后改回update
       naming:
         physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
     show-sql: true  # 显示SQL日志，便于调试

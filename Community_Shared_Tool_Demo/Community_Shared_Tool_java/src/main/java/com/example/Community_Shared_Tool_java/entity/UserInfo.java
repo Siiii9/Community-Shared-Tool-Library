@@ -21,7 +21,6 @@ public class UserInfo {
     @Column(name = "user_basicinfo")
     private String userBasicinfo;  // 小写 i，这里是关键
 
-    // 添加新的信用分字段
     @Column(name = "credit_score")
     private Integer creditScore = 100; // 默认100分
 
@@ -30,4 +29,12 @@ public class UserInfo {
 
     @Column(name = "is_deposit_paid")
     private Boolean isDepositPaid = false;
+
+    // 新增字段：是否是管理员
+    @Column(name = "is_admin")
+    private Boolean isAdmin = false;
+
+    // 新增字段：是否被冻结
+    @Column(name = "is_frozen")
+    private Boolean isFrozen = false;
 }

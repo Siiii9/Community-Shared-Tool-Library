@@ -34,20 +34,24 @@ public class UserInfoController {
         Map<String, Object> response = new HashMap<>();
 
         if (result == LoginService.LoginResult.SUCCESS) {
-            // 获取用户信息
             Optional<UserInfo> userOptional = userinfoRepository.findByUsername(loginRequest.getUsername());
             if (userOptional.isPresent()) {
                 UserInfo user = userOptional.get();
                 response.put("success", true);
-                response.put("token", "dummy-token-" + loginRequest.getUsername()); // 示例 token
-                response.put("userId", user.getUserId()); // 返回用户ID
-                response.put("username", user.getUsername()); // 返回用户名
+                response.put("token", "dummy-token-" + loginRequest.getUsername());
+                response.put("userId", user.getUserId());
+                response.put("username", user.getUsername());
+                response.put("isAdmin", Boolean.TRUE.equals(user.getIsAdmin()));
                 return ResponseEntity.ok(response);
             } else {
                 response.put("success", false);
                 response.put("message", "用户信息获取失败");
                 return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
             }
+        } else if (result == LoginService.LoginResult.USER_FROZEN) {
+            response.put("success", false);
+            response.put("message", "账户已被冻结，请联系管理员");
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
         } else {
             response.put("success", false);
             switch (result) {
@@ -86,5 +90,47 @@ public class UserInfoController {
             }
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
         }
+    }
+
+    @GetMapping("/info/{username}")
+    public ResponseEntity<Map<String, Object>> getUserInfo(@PathVariable String username) {
+        Optional<UserInfo> userOptional = userinfoRepository.findByUsername(username);
+        Map<String, Object> response = new HashMap<>();
+
+        if (userOptional.isPresent()) {
+            UserInfo user = userOptional.get();
+            response.put("success", true);
+            response.put("userId", user.getUserId());
+            response.put("username", user.getUsername());
+            response.put("userBasicinfo", user.getUserBasicinfo());
+            response.put("creditScore", user.getCreditScore());
+            response.put("depositAmount", user.getDepositAmount());
+            response.put("isDepositPaid", user.getIsDepositPaid());
+            response.put("isAdmin", Boolean.TRUE.equals(user.getIsAdmin()));
+            response.put("isFrozen", Boolean.TRUE.equals(user.getIsFrozen()));
+            return ResponseEntity.ok(response);
+        } else {
+            response.put("success", false);
+            response.put("message", "用户不存在");
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+        }
+    }
+
+    @GetMapping("/check-admin/{username}")
+    public ResponseEntity<Map<String, Object>> checkAdmin(@PathVariable String username) {
+        Optional<UserInfo> userOptional = userinfoRepository.findByUsername(username);
+        Map<String, Object> response = new HashMap<>();
+
+        if (userOptional.isPresent()) {
+            UserInfo user = userOptional.get();
+            response.put("isAdmin", Boolean.TRUE.equals(user.getIsAdmin()));
+            response.put("success", true);
+        } else {
+            response.put("isAdmin", false);
+            response.put("success", false);
+            response.put("message", "用户不存在");
+        }
+
+        return ResponseEntity.ok(response);
     }
 }

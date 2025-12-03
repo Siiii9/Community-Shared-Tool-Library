@@ -1,13 +1,30 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import { useUserStore } from '@/stores/userStore';
 
 const router = useRouter();
 const route = useRoute();
+const userStore = useUserStore();
 
 const menuStates = ref({ menu1: false, menu2: false, menu3: false, menu4: false });
 const menuRefs = ref({ menu1: null, menu2: null, menu3: null, menu4: null });
 const timeoutIds = ref({ menu1: null, menu2: null, menu3: null, menu4: null });
+
+// 计算属性：显示用户还是管理员
+const userRole = computed(() => {
+  return userStore.isAdmin ? '管理员' : '用户';
+});
+
+// 计算属性：管理员菜单
+const adminMenuItems = computed(() => [
+  {
+    name: '用户管理',
+    icon: 'groups',
+    route: '/admin/users',
+    show: userStore.isAdmin
+  }
+]);
 
 const toggleMenu = (menu) => {
   Object.keys(timeoutIds.value).forEach(key => clearTimeout(timeoutIds.value[key]));
@@ -27,7 +44,14 @@ const handleMouseLeave = (menu) => menuStates.value[menu] && startAutoCloseTimer
 
 const handleLogout = () => {
   localStorage.removeItem('userToken');
+  localStorage.removeItem('username');
+  localStorage.removeItem('isAdmin');
+  userStore.logout();
   router.push('/login');
+};
+
+const navigateToAdminUsers = () => {
+  router.push('/admin/users');
 };
 
 const closeMenus = (event) => {
@@ -43,8 +67,13 @@ const closeMenus = (event) => {
   }
 };
 
-// 合并所有 onMounted 逻辑到一个钩子中
 onMounted(() => {
+  // 检查是否是管理员
+  const savedIsAdmin = localStorage.getItem('isAdmin');
+  if (savedIsAdmin === 'true') {
+    userStore.setAdmin(true);
+  }
+
   // 路由重定向逻辑
   if (route.path === '/main') {
     router.replace('/tool-map');
@@ -140,13 +169,26 @@ onUnmounted(() => {
                 <span class="material-icons">credit_score</span>
                 信用与押金
               </RouterLink>
+              <!-- 管理员菜单项 -->
+              <RouterLink v-if="userStore.isAdmin" to="/admin/users" class="submenu-item" @click="menuStates.menu4 = false">
+                <span class="material-icons">admin_panel_settings</span>
+                用户管理
+              </RouterLink>
             </div>
           </transition>
         </div>
+
+        <!-- 管理员专属菜单 -->
+        <div v-if="userStore.isAdmin" class="menu-item admin-menu">
+          <button @click="navigateToAdminUsers" class="menu-button admin-button">
+            <span class="material-icons">admin_panel_settings</span>
+            用户管理
+          </button>
+        </div>
       </div>
       <div class="user-profile">
-        <span class="material-icons">account_circle</span>
-        <span>用户</span>
+        <span class="material-icons">{{ userStore.isAdmin ? 'admin_panel_settings' : 'account_circle' }}</span>
+        <span>{{ userRole }}</span>
         <button @click="handleLogout" class="logout-button">退出</button>
       </div>
     </header>
@@ -199,6 +241,18 @@ onUnmounted(() => {
 .menu-item {
   position: relative;
   height: 100%;
+}
+
+.admin-menu {
+  margin-left: 10px;
+}
+
+.admin-button {
+  background: linear-gradient(45deg, #ff6b6b, #ee5a52);
+}
+
+.admin-button:hover {
+  background: linear-gradient(45deg, #ee5a52, #d63031);
 }
 
 .menu-button {
@@ -266,6 +320,10 @@ onUnmounted(() => {
   color: #ecf0f1;
 }
 
+.user-profile .material-icons {
+  font-size: 1.5rem;
+}
+
 .logout-button {
   padding: 6px 12px;
   background: #e74c3c;
@@ -314,6 +372,10 @@ onUnmounted(() => {
 
   .brand h1 {
     font-size: 1.2rem;
+  }
+  
+  .admin-menu {
+    display: none;
   }
 }
 </style>
