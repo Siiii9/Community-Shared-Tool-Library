@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed, provide } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useUserStore } from '@/stores/userStore';
 
@@ -10,6 +10,14 @@ const userStore = useUserStore();
 const menuStates = ref({ menu1: false, menu2: false, menu3: false, menu4: false });
 const menuRefs = ref({ menu1: null, menu2: null, menu3: null, menu4: null });
 const timeoutIds = ref({ menu1: null, menu2: null, menu3: null, menu4: null });
+
+// 👇 新增：红点状态
+const hasOverdueReminder = ref(false);
+
+// 👇 提供给子组件控制红点的函数
+provide('setOverdueReminder', (status) => {
+  hasOverdueReminder.value = status;
+});
 
 // 计算属性：显示用户还是管理员
 const userRole = computed(() => {
@@ -138,6 +146,8 @@ onUnmounted(() => {
           <button @click.stop="toggleMenu('menu3')" class="menu-button">
             <span class="material-icons">chat</span>
             消息沟通
+            <!-- 🔴 小红点 -->
+            <span v-if="hasOverdueReminder" class="reminder-dot"></span>
           </button>
           <transition name="slide">
             <div v-if="menuStates.menu3" class="submenu" @mouseenter="handleMouseEnter('menu3')" @mouseleave="handleMouseLeave('menu3')">
@@ -275,6 +285,16 @@ onUnmounted(() => {
 .menu-button .material-icons {
   font-size: 1.2rem;
   margin-right: 8px;
+}
+
+/* 🔴 小红点样式 */
+.menu-button .reminder-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background-color: #e63946;
+  border-radius: 50%;
+  margin-left: 8px;
 }
 
 .submenu {

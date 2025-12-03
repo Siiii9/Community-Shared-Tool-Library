@@ -11,6 +11,7 @@
         <option value="APPROVED">已同意</option>
         <option value="REJECTED">已拒绝</option>
         <option value="TAKEN">已取用</option>
+        <option value="WAITING_RETURN_CONFIRM">等待归还确认</option>
         <option value="RETURNED">已归还</option>
       </select>
     </div>
@@ -63,6 +64,11 @@
         
         <div class="application-actions" v-if="application.status === 'TAKEN'">
           <button @click="confirmReturn(application.id)" class="return-btn">确认归还</button>
+        </div>
+        
+        <div class="application-actions" v-if="application.status === 'WAITING_RETURN_CONFIRM'">
+          <button @click="confirmReturn(application.id)" class="return-btn">确认归还</button>
+          <button @click="rejectReturn(application.id)" class="reject-btn">拒绝归还</button>
         </div>
       </div>
     </div>
@@ -143,6 +149,7 @@ const getStatusText = (status: string) => {
     'APPROVED': '已同意',
     'REJECTED': '已拒绝',
     'TAKEN': '已取用',
+    'WAITING_RETURN_CONFIRM': '等待归还确认',
     'RETURNED': '已归还'
   }
   return statusMap[status] || status
@@ -164,7 +171,8 @@ const filteredApplications = computed(() => {
 const refreshApplications = async () => {
   try {
     // 模拟当前用户ID（实际项目中应从登录状态获取）
-    const currentUserId = parseInt(localStorage.getItem('userId')) || 2 // 工具所有者ID
+    const userIdStr = localStorage.getItem('userId');
+    const currentUserId = userIdStr ? parseInt(userIdStr) : 2 // 工具所有者ID
     
     const response = await axios.get(`/api/borrow/applications/${currentUserId}`)
     if (response.data.success) {
@@ -269,13 +277,29 @@ const confirmReturn = async (applicationId: number) => {
   if (!confirm('确认用户已归还工具？')) return
   
   try {
-    const response = await axios.post(`/api/borrow/return/${applicationId}`)
+    const response = await axios.post(`/api/borrow/confirm-return/${applicationId}`)
     if (response.data.success) {
       alert('已确认归还')
       await refreshApplications()
     }
   } catch (error) {
     console.error('确认归还失败：', error)
+    alert('操作失败，请重试')
+  }
+}
+
+// 拒绝归还
+const rejectReturn = async (applicationId: number) => {
+  if (!confirm('确认拒绝用户的归还请求？')) return
+  
+  try {
+    const response = await axios.post(`/api/borrow/reject-return/${applicationId}`)
+    if (response.data.success) {
+      alert('已拒绝归还')
+      await refreshApplications()
+    }
+  } catch (error) {
+    console.error('拒绝归还失败：', error)
     alert('操作失败，请重试')
   }
 }

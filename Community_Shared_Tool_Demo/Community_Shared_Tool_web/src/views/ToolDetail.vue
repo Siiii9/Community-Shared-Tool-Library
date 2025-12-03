@@ -3,9 +3,8 @@
   <div class="tool-detail">
     <div class="detail-header">
       <h1>{{ tool?.name }}</h1>
-      <!-- 修复：使用更明显的红色背景 -->
-      <div class="status-badge" :class="getStatusClass()">
-        {{ getStatusText() }}
+      <div class="status-badge" :class="tool?.status">
+        {{ tool?.status === 'available' ? '可用' : '已借出' }}
       </div>
     </div>
 
@@ -35,7 +34,7 @@
       <button 
         class="borrow-btn" 
         @click="showApplyDialog" 
-        :disabled="!isAvailable()"
+        :disabled="tool?.status !== 'available'"
       >
         <span class="material-icons">shopping_cart</span>
         申请借用
@@ -153,27 +152,9 @@ const applyForm = ref({
   applyReason: ''
 })
 
-// 新增：获取状态类名
-const getStatusClass = () => {
-  if (!tool.value) return 'available';
-  return tool.value.status === 'available' ? 'available' : 'borrowed';
-}
-
-// 新增：获取状态文本
-const getStatusText = () => {
-  if (!tool.value) return '可用';
-  return tool.value.status === 'available' ? '可用' : '已借出';
-}
-
-// 新增：判断是否可借用
-const isAvailable = () => {
-  if (!tool.value) return false;
-  return tool.value.status === 'available';
-}
-
 // 显示申请对话框
 const showApplyDialog = () => {
-  if (!isAvailable()) return
+  if (tool.value?.status !== 'available') return
   showApplyForm.value = true
 }
 
@@ -201,17 +182,19 @@ const submitApply = async () => {
 
   try {
     // 从 localStorage 获取当前用户ID
-    const currentUserId = parseInt(localStorage.getItem('userId') || '1');
-    
+    const userIdStr = localStorage.getItem('userId');
+    const currentUserId = userIdStr ? parseInt(userIdStr) : 1;
+    const toolOwnerId = tool.value.ownerId;
+
     const response = await axios.post('/api/borrow/apply', {
       toolId: tool.value.id,
       borrowerId: currentUserId,
-      ownerId: tool.value.ownerId,
+      ownerId: toolOwnerId,
       borrowDays: applyForm.value.borrowDays,
       applyReason: applyForm.value.applyReason
     })
 
-    if (response.data) {
+    if (response.data.success) {
       alert('✅ 借用申请提交成功！等待物品所有者确认。')
       tool.value.status = 'pending'
       showApplyForm.value = false
@@ -220,7 +203,7 @@ const submitApply = async () => {
         applyReason: ''
       }
     } else {
-      alert('申请失败，请稍后重试')
+      alert('申请失败：' + response.data.message)
     }
   } catch (error: any) {
     console.error('申请借用失败：', error)
@@ -265,9 +248,8 @@ const submitApply = async () => {
   background: #52c41a;
 }
 
-/* 修复：已借出使用明显的红色 */
 .status-badge.borrowed {
-  background: #ff4d4f;
+  background: #faad14;
 }
 
 .image-section {
@@ -374,13 +356,6 @@ const submitApply = async () => {
   margin-bottom: 5px;
   font-weight: bold;
   color: #333;
-}
-
-.limit-info {
-  display: block;
-  margin-top: 5px;
-  font-size: 12px;
-  color: #666;
 }
 
 .form-group input,

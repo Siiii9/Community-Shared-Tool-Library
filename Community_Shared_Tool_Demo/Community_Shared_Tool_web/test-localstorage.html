@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>测试localStorage</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            background: #f5f5f5;
+            padding: 20px;
+            border-radius: 8px;
+        }
+        h1 {
+            color: #333;
+        }
+        input[type="number"] {
+            padding: 8px;
+            margin-right: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            padding: 8px 16px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .status {
+            margin-top: 20px;
+            padding: 10px;
+            background: #e9ecef;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>测试localStorage设置</h1>
+        <p>使用此页面来设置localStorage中的userId，以便测试不同用户的借用记录功能。</p>
+        
+        <div>
+            <label for="userId">设置用户ID：</label>
+            <input type="number" id="userId" min="1" value="3">
+            <button onclick="setUserId()">设置</button>
+        </div>
+        
+        <div class="status">
+            <h3>当前localStorage状态：</h3>
+            <div id="currentStatus"></div>
+        </div>
+    </div>
+
+    <script>
+        // 更新当前状态显示
+        function updateStatus() {
+            const userId = localStorage.getItem('userId');
+            const userToken = localStorage.getItem('userToken');
+            const username = localStorage.getItem('username');
+            
+            document.getElementById('currentStatus').innerHTML = `
+                <p><strong>userId:</strong> ${userId || '未设置'}</p>
+                <p><strong>userToken:</strong> ${userToken ? '已存在' : '未设置'}</p>
+                <p><strong>username:</strong> ${username || '未设置'}</p>
+            `;
+        }
+        
+        // 设置用户ID
+        function setUserId() {
+            const userId = document.getElementById('userId').value;
+            localStorage.setItem('userId', userId);
+            alert(`已将userId设置为：${userId}`);
+            updateStatus();
+        }
+        
+        // 页面加载时更新状态
+        window.onload = updateStatus;
+    </script>
+</body>
+</html>

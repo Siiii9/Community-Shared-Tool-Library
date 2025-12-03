@@ -1,4 +1,3 @@
-<!-- src/views/MyPublished.vue -->
 <template>
   <div class="my-published">
     <div class="operation-buttons">
@@ -17,6 +16,7 @@
         <option value="">全部状态</option>
         <option value="available">可借用</option>
         <option value="borrowed">已借出</option>
+        <option value="pending">申请中</option>
         <option value="maintenance">维护中</option>
       </select>
 
@@ -31,6 +31,7 @@
           <th>工具名称</th>
           <th>位置</th>
           <th>状态</th>
+          <th>借用提示</th>
           <th>操作</th>
         </tr>
       </thead>
@@ -44,10 +45,43 @@
               :class="{
                 'status-available': tool.status === 'available',
                 'status-borrowed': tool.status === 'borrowed',
+                'status-pending': tool.status === 'pending',
                 'status-maintenance': tool.status === 'maintenance'
               }"
             >
               {{ statusText[tool.status] }}
+            </span>
+          </td>
+          <td>
+            <div v-if="pendingApplications[tool.id] && pendingApplications[tool.id].length > 0" class="pending-applications">
+              <div v-for="application in pendingApplications[tool.id]" :key="application.id" class="application-item">
+                <div class="application-info">
+                  <span class="application-status">申请中</span>
+                  <span class="borrower">用户 {{ application.borrowerId }}</span>
+                </div>
+                <div class="application-actions">
+                  <button @click="approveApplication(application.id, tool.id)" class="btn-approve">同意</button>
+                  <button @click="rejectApplication(application.id, tool.id)" class="btn-reject">拒绝</button>
+                </div>
+              </div>
+            </div>
+            <div v-else-if="waitingReturnConfirmations[tool.id] && waitingReturnConfirmations[tool.id].length > 0" class="return-confirmations">
+              <div v-for="application in waitingReturnConfirmations[tool.id]" :key="application.id" class="application-item">
+                <div class="application-info">
+                  <span class="application-status">等待归还确认</span>
+                  <span class="borrower">用户 {{ application.borrowerId }}</span>
+                </div>
+                <div class="application-actions">
+                  <button @click="confirmReturn(application.id, tool.id)" class="btn-approve">确认归还</button>
+                  <button @click="rejectReturn(application.id, tool.id)" class="btn-reject">拒绝归还</button>
+                </div>
+              </div>
+            </div>
+            <span v-else-if="tool.status === 'borrowed'" class="borrowing-status">
+              借用中
+            </span>
+            <span v-else class="no-applications">
+              -无-
             </span>
           </td>
           <td>
@@ -137,7 +171,8 @@ import axios from 'axios'
 const statusText = {
   available: '可借用',
   borrowed: '已借出',
-  maintenance: '维护中'
+  maintenance: '维护中',
+  pending: '申请中'
 }
 
 // 当前登录用户ID
@@ -145,6 +180,8 @@ const currentUserId = parseInt(localStorage.getItem('userId') || '1')
 
 // 数据状态
 const rawData = ref([])
+const pendingApplications = ref({})
+const waitingReturnConfirmations = ref({})
 const filter = ref({ toolName: '', status: '' })
 const sort = ref({ prop: null, order: null })
 const pagination = ref({ currentPage: 1, pageSize: 5 })
@@ -152,7 +189,6 @@ const pagination = ref({ currentPage: 1, pageSize: 5 })
 // 变量：控制对话框显示
 const showAddToolDialog = ref(false)
 const newTool = ref({
-  // 🔹 修复：删除 toolType 字段
   toolName: '',
   description: '',
   location: '',
@@ -196,10 +232,204 @@ const formatDate = (isoStr) => {
   })
 }
 
+// 获取待处理的借用申请
+const fetchPendingApplications = async () => {
+  try {
+    const response = await axios.get(`/api/borrow/my-applications/${currentUserId}`)
+    // 处理后端返回的新响应格式
+    const result = response.data
+    const applications = result.success ? result.data : []
+    
+    // 筛选出PENDING状态的借用申请
+    const pendingApps = applications.filter(app => app.status === 'PENDING')
+    
+    // 按工具ID分组
+    const grouped = {}
+    pendingApps.forEach(app => {
+      if (!grouped[app.toolId]) {
+        grouped[app.toolId] = []
+      }
+      grouped[app.toolId].push(app)
+    })
+    
+    pendingApplications.value = grouped
+  } catch (error) {
+    console.error('获取借用申请出错:', error)
+    console.log('使用模拟借用申请数据')
+    // 使用模拟数据
+    pendingApplications.value = {
+      1: [
+        {
+          id: 1,
+          toolId: 1,
+          borrowerId: 2,
+          status: 'PENDING',
+          applyTime: new Date().toISOString(),
+          borrowDays: 3
+        }
+      ]
+    }
+  }
+}
+
+// 获取等待归还确认的记录
+const fetchWaitingReturnConfirmations = async () => {
+  try {
+    const response = await axios.get(`/api/borrow/my-applications/${currentUserId}`)
+    const result = response.data
+    
+    // 处理后端返回的新响应格式
+    const applications = result.success ? result.data : []
+    
+    // 筛选出等待归还确认的记录
+    const waitingReturnApps = applications.filter(app => app.status === 'WAITING_RETURN_CONFIRM')
+    
+    // 按工具ID分组
+    const grouped = {}
+    waitingReturnApps.forEach(app => {
+      if (!grouped[app.toolId]) {
+        grouped[app.toolId] = []
+      }
+      grouped[app.toolId].push(app)
+    })
+    
+    waitingReturnConfirmations.value = grouped
+  } catch (error) {
+    console.error('获取等待归还确认记录出错:', error)
+    console.log('使用模拟等待归还确认数据')
+    // 使用模拟数据
+    waitingReturnConfirmations.value = {
+      2: [
+        {
+          id: 2,
+          toolId: 2,
+          borrowerId: 3,
+          status: 'WAITING_RETURN_CONFIRM',
+          applyTime: new Date().toISOString(),
+          borrowDays: 5
+        }
+      ]
+    }
+  }
+}
+
+// 同意借用申请
+const approveApplication = async (applicationId, toolId) => {
+  try {
+    const response = await axios.post(`/api/borrow/approve/${applicationId}`)
+    
+    const result = response.data
+    // 处理可能的不同响应格式
+    if (result.success === false) {
+      throw new Error(result.message || '同意借用申请失败')
+    }
+    
+    // 更新工具状态
+    const toolIndex = rawData.value.findIndex(t => t.id === toolId)
+    if (toolIndex !== -1) {
+      rawData.value[toolIndex].status = 'borrowed'
+    }
+    
+    // 重新获取借用申请
+    await fetchPendingApplications()
+    
+    alert('同意借用申请成功')
+  } catch (error) {
+    console.error('同意借用申请出错:', error)
+    alert(error.message || '操作失败，请重试')
+  }
+}
+
+// 拒绝借用申请
+const rejectApplication = async (applicationId, toolId) => {
+  // 使用alert替代prompt，避免浏览器兼容性问题
+  // 后续可以考虑使用模态框组件
+  const rejectReason = '不符合借用条件' // 默认拒绝原因
+  
+  try {
+    const response = await axios.post(`/api/borrow/reject/${applicationId}`, { rejectReason })
+    
+    const result = response.data
+    if (!result.success) {
+      throw new Error(result.message || '拒绝借用申请失败')
+    }
+    
+    // 更新工具状态为可借用
+    const toolIndex = rawData.value.findIndex(t => t.id === toolId)
+    if (toolIndex !== -1) {
+      rawData.value[toolIndex].status = 'available'
+    }
+    
+    // 重新获取借用申请
+    await fetchPendingApplications()
+    
+    alert('拒绝借用申请成功')
+  } catch (error) {
+    console.error('拒绝借用申请出错:', error)
+    alert('操作失败，请重试')
+  }
+}
+
+// 确认归还
+const confirmReturn = async (applicationId, toolId) => {
+  if (!confirm('确认用户已归还工具？')) return
+  
+  try {
+    const response = await axios.post(`/api/borrow/confirm-return/${applicationId}`)
+    
+    const result = response.data
+    if (!result.success) {
+      throw new Error(result.message || '确认归还失败')
+    }
+    
+    // 更新工具状态为可借用
+    const toolIndex = rawData.value.findIndex(t => t.id === toolId)
+    if (toolIndex !== -1) {
+      rawData.value[toolIndex].status = 'available'
+    }
+    
+    // 重新获取等待归还确认记录
+    await fetchWaitingReturnConfirmations()
+    
+    alert('确认归还成功')
+  } catch (error) {
+    console.error('确认归还出错:', error)
+    alert(error.message || '操作失败，请重试')
+  }
+}
+
+// 拒绝归还
+const rejectReturn = async (applicationId, toolId) => {
+  if (!confirm('确认拒绝用户的归还请求？')) return
+  
+  try {
+    const response = await axios.post(`/api/borrow/reject-return/${applicationId}`)
+    
+    const result = response.data
+    if (!result.success) {
+      throw new Error(result.message || '拒绝归还失败')
+    }
+    
+    // 重新获取等待归还确认记录
+    await fetchWaitingReturnConfirmations()
+    
+    alert('拒绝归还成功')
+  } catch (error) {
+    console.error('拒绝归还出错:', error)
+    alert(error.message || '操作失败，请重试')
+  }
+}
+
+// 刷新数据
 const refreshData = async () => {
   try {
+    // 获取发布的工具
     const response = await axios.get(`/api/published-tools/owner/${currentUserId}`)
     rawData.value = response.data
+    
+    // 获取借用申请和等待归还确认记录
+    await fetchPendingApplications()
+    await fetchWaitingReturnConfirmations()
   } catch (error) {
     console.error('获取发布工具列表失败：', error)
     alert('获取发布工具列表失败，请重试')
@@ -442,6 +672,13 @@ onMounted(() => {
   border-radius: 4px;
 }
 
+.status-pending {
+  background: #1890ff;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
 .btn-edit {
   padding: 4px 8px;
   background: #1890ff;
@@ -573,5 +810,93 @@ onMounted(() => {
 .pagination button {
   margin: 0 5px;
   padding: 6px 12px;
+}
+
+/* 借用提示样式 */
+.pending-applications {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.application-item {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px;
+  border: 1px solid #faad14;
+  border-radius: 4px;
+  background: #fffbe6;
+}
+
+.application-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+
+.application-status {
+  padding: 2px 6px;
+  background: #faad14;
+  color: white;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: bold;
+}
+
+.borrower {
+  color: #666;
+}
+
+.application-actions {
+  display: flex;
+  gap: 5px;
+  justify-content: flex-end;
+}
+
+.btn-approve {
+  padding: 3px 8px;
+  background: #52c41a;
+  color: white;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.btn-reject {
+  padding: 3px 8px;
+  background: #ff4d4f;
+  color: white;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.borrowing-status {
+  color: #1890ff;
+  font-weight: bold;
+}
+
+.no-applications {
+  color: #999;
+  font-style: italic;
+}
+
+.return-confirmations {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.return-confirmations .application-item {
+  border: 1px solid #1890ff;
+  background: #f0f9ff;
+}
+
+.return-confirmations .application-status {
+  background: #1890ff;
 }
 </style>

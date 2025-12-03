@@ -182,4 +182,44 @@ public class BorrowController {
             return ResponseEntity.badRequest().body(response);
         }
     }
+    
+    // 确认归还工具（所有者确认）
+    @PostMapping("/confirm-return/{borrowRecordId}")
+    public ResponseEntity<Map<String, Object>> confirmReturn(@PathVariable Integer borrowRecordId) {
+        try {
+            BorrowRecord record = borrowService.confirmReturn(borrowRecordId);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "工具归还确认成功");
+            response.put("data", record);
+            
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+        }
+    }
+    
+    // 拒绝归还工具（所有者拒绝）
+    @PostMapping("/reject-return/{borrowRecordId}")
+    public ResponseEntity<Map<String, Object>> rejectReturn(@PathVariable Integer borrowRecordId) {
+        try {
+            BorrowRecord record = borrowService.rejectReturn(borrowRecordId);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "工具归还拒绝成功");
+            response.put("data", record);
+            
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+        }
+    }
 }
