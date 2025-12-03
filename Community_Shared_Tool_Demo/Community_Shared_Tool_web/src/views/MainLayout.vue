@@ -1,65 +1,4 @@
-<script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
-import { useRouter, useRoute } from 'vue-router';
-
-const router = useRouter();
-const route = useRoute();
-
-const menuStates = ref({ menu1: false, menu2: false, menu3: false, menu4: false });
-const menuRefs = ref({ menu1: null, menu2: null, menu3: null, menu4: null });
-const timeoutIds = ref({ menu1: null, menu2: null, menu3: null, menu4: null });
-
-const toggleMenu = (menu) => {
-  Object.keys(timeoutIds.value).forEach(key => clearTimeout(timeoutIds.value[key]));
-  const newState = !menuStates.value[menu];
-  Object.keys(menuStates.value).forEach(key => menuStates.value[key] = false);
-  menuStates.value[menu] = newState;
-  if (newState) startAutoCloseTimer(menu);
-};
-
-const startAutoCloseTimer = (menu) => {
-  clearTimeout(timeoutIds.value[menu]);
-  timeoutIds.value[menu] = setTimeout(() => menuStates.value[menu] = false, 2000);
-};
-
-const handleMouseEnter = (menu) => clearTimeout(timeoutIds.value[menu]);
-const handleMouseLeave = (menu) => menuStates.value[menu] && startAutoCloseTimer(menu);
-
-const handleLogout = () => {
-  localStorage.removeItem('userToken');
-  router.push('/login');
-};
-
-const closeMenus = (event) => {
-  let clickedOutside = true;
-  Object.entries(menuRefs.value).forEach(([key, ref]) => {
-    if (ref?.contains(event.target)) clickedOutside = false;
-  });
-  if (clickedOutside) {
-    Object.keys(menuStates.value).forEach(key => {
-      menuStates.value[key] = false;
-      clearTimeout(timeoutIds.value[key]);
-    });
-  }
-};
-
-// 合并所有 onMounted 逻辑到一个钩子中
-onMounted(() => {
-  // 路由重定向逻辑
-  if (route.path === '/main') {
-    router.replace('/tool-map');
-  }
-  
-  // 菜单点击外部关闭逻辑
-  document.addEventListener('click', closeMenus);
-});
-
-onUnmounted(() => {
-  document.removeEventListener('click', closeMenus);
-  Object.keys(timeoutIds.value).forEach(key => clearTimeout(timeoutIds.value[key]));
-});
-</script>
-
+<!-- src/layout/MainLayout.vue -->
 <template>
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
   <div class="container">
@@ -83,7 +22,6 @@ onUnmounted(() => {
             </div>
           </transition>
         </div>
-
         <!-- 借用管理菜单 -->
         <div class="menu-item" ref="menuRefs.menu2">
           <button @click.stop="toggleMenu('menu2')" class="menu-button">
@@ -103,12 +41,13 @@ onUnmounted(() => {
             </div>
           </transition>
         </div>
-
         <!-- 消息与沟通菜单 -->
         <div class="menu-item" ref="menuRefs.menu3">
           <button @click.stop="toggleMenu('menu3')" class="menu-button">
             <span class="material-icons">chat</span>
             消息沟通
+            <!-- 🔴 小红点 -->
+            <span v-if="hasOverdueReminder" class="reminder-dot"></span>
           </button>
           <transition name="slide">
             <div v-if="menuStates.menu3" class="submenu" @mouseenter="handleMouseEnter('menu3')" @mouseleave="handleMouseLeave('menu3')">
@@ -123,7 +62,6 @@ onUnmounted(() => {
             </div>
           </transition>
         </div>
-
         <!-- 个人中心菜单 -->
         <div class="menu-item" ref="menuRefs.menu4">
           <button @click.stop="toggleMenu('menu4')" class="menu-button">
@@ -156,6 +94,72 @@ onUnmounted(() => {
   </div>
 </template>
 
+<script setup>
+import { ref, onMounted, onUnmounted, provide } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
+
+const router = useRouter()
+const route = useRoute()
+
+// 👇 新增：红点状态
+const hasOverdueReminder = ref(false)
+
+// 👇 提供给子组件控制红点的函数
+provide('setOverdueReminder', (status) => {
+  hasOverdueReminder.value = status
+})
+
+const menuStates = ref({ menu1: false, menu2: false, menu3: false, menu4: false })
+const menuRefs = ref({ menu1: null, menu2: null, menu3: null, menu4: null })
+const timeoutIds = ref({ menu1: null, menu2: null, menu3: null, menu4: null })
+
+const toggleMenu = (menu) => {
+  Object.keys(timeoutIds.value).forEach(key => clearTimeout(timeoutIds.value[key]))
+  const newState = !menuStates.value[menu]
+  Object.keys(menuStates.value).forEach(key => menuStates.value[key] = false)
+  menuStates.value[menu] = newState
+  if (newState) startAutoCloseTimer(menu)
+}
+
+const startAutoCloseTimer = (menu) => {
+  clearTimeout(timeoutIds.value[menu])
+  timeoutIds.value[menu] = setTimeout(() => menuStates.value[menu] = false, 2000)
+}
+
+const handleMouseEnter = (menu) => clearTimeout(timeoutIds.value[menu])
+const handleMouseLeave = (menu) => menuStates.value[menu] && startAutoCloseTimer(menu)
+
+const handleLogout = () => {
+  localStorage.removeItem('userToken')
+  router.push('/login')
+}
+
+const closeMenus = (event) => {
+  let clickedOutside = true
+  Object.entries(menuRefs.value).forEach(([key, ref]) => {
+    if (ref?.contains(event.target)) clickedOutside = false
+  })
+  if (clickedOutside) {
+    Object.keys(menuStates.value).forEach(key => {
+      menuStates.value[key] = false
+      clearTimeout(timeoutIds.value[key])
+    })
+  }
+}
+
+onMounted(() => {
+  if (route.path === '/main') {
+    router.replace('/tool-map')
+  }
+  document.addEventListener('click', closeMenus)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', closeMenus)
+  Object.keys(timeoutIds.value).forEach(key => clearTimeout(timeoutIds.value[key]))
+})
+</script>
+
 <style scoped>
 * {
   margin: 0;
@@ -163,7 +167,6 @@ onUnmounted(() => {
   box-sizing: border-box;
   font-family: 'Segoe UI', system-ui, sans-serif;
 }
-
 .container {
   display: flex;
   flex-direction: column;
@@ -171,7 +174,6 @@ onUnmounted(() => {
   height: 100vh;
   background: #f5f6fa;
 }
-
 .top-bar {
   position: relative;
   flex-shrink: 0;
@@ -182,25 +184,21 @@ onUnmounted(() => {
   padding: 0 20px;
   z-index: 1000;
 }
-
 .brand h1 {
   color: #ecf0f1;
   font-size: 1.5rem;
   font-weight: 700;
   line-height: 1;
 }
-
 .menu-group {
   display: flex;
   height: 100%;
   margin-left: 30px;
 }
-
 .menu-item {
   position: relative;
   height: 100%;
 }
-
 .menu-button {
   display: flex;
   align-items: center;
@@ -213,14 +211,22 @@ onUnmounted(() => {
   cursor: pointer;
   transition: background 0.2s;
 }
-
 .menu-button:hover {
   background: rgba(255, 255, 255, 0.1);
 }
-
 .menu-button .material-icons {
   font-size: 1.2rem;
   margin-right: 8px;
+}
+
+/* 🔴 小红点样式 */
+.menu-button .reminder-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background-color: #e63946;
+  border-radius: 50%;
+  margin-left: 8px;
 }
 
 .submenu {
@@ -232,7 +238,6 @@ onUnmounted(() => {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   z-index: 1001;
 }
-
 .submenu-item {
   display: flex;
   align-items: center;
@@ -242,22 +247,18 @@ onUnmounted(() => {
   font-size: 0.9rem;
   transition: all 0.2s;
 }
-
 .submenu-item:hover {
   background: rgba(255, 255, 255, 0.05);
   color: #ecf0f1;
 }
-
 .submenu-item .material-icons {
   font-size: 1.1rem;
   margin-right: 10px;
 }
-
 .submenu-item.router-link-active {
   background: rgba(52, 152, 219, 0.2);
   color: #ecf0f1;
 }
-
 .user-profile {
   display: flex;
   align-items: center;
@@ -265,7 +266,6 @@ onUnmounted(() => {
   margin-left: auto;
   color: #ecf0f1;
 }
-
 .logout-button {
   padding: 6px 12px;
   background: #e74c3c;
@@ -275,43 +275,35 @@ onUnmounted(() => {
   cursor: pointer;
   transition: background 0.2s;
 }
-
 .logout-button:hover {
   background: #c0392b;
 }
-
 .main-content {
   flex: 1;
   overflow: auto;
   position: relative;
 }
-
 .slide-enter-active,
 .slide-leave-active {
   transition: all 0.3s ease;
   overflow: hidden;
 }
-
 .slide-enter-from,
 .slide-leave-to {
   opacity: 0;
   transform: translateY(-10px);
 }
-
 @media (max-width: 768px) {
   .top-bar {
     padding: 0 10px;
   }
-
   .menu-button {
     padding: 0 10px;
     font-size: 0.85rem;
   }
-
   .menu-button .material-icons {
     margin-right: 5px;
   }
-
   .brand h1 {
     font-size: 1.2rem;
   }
