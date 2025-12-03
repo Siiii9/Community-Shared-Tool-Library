@@ -18,6 +18,7 @@
       <div class="description">
         <h3>工具介绍</h3>
         <p>{{ tool?.description || '暂无介绍' }}</p>
+        <p><strong>位置：</strong>{{ tool?.location }}</p>
       </div>
 
       <!-- 操作按钮 -->
@@ -76,68 +77,36 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import axios from 'axios' // 🔹 新增：导入 axios
 
 const route = useRoute()
 const router = useRouter()
 
 const tool = ref<any>(null)
 
-// 模拟工具数据（根据 ID 加载）
-const loadToolById = (id: string) => {
-  const tools = [
-    { 
-      id: '1', 
-      name: '梯子', 
-      status: 'available', 
-      location: '信息B座-201实验室', 
-      description: '铝合金伸缩梯，最大承重150kg，适合高处作业。附带防滑脚垫，安全可靠。' 
-    },
-    { 
-      id: '2', 
-      name: '冲击钻', 
-      status: 'borrowed', 
-      location: '信息B座-205电子间', 
-      description: '博世专业级冲击钻，功率850W，带多种钻头，适用于混凝土和砖墙钻孔。' 
-    },
-    { 
-      id: '3', 
-      name: '万用表', 
-      status: 'available', 
-      location: '信息A座-101测试室', 
-      description: '数字万用表，可测电压、电流、电阻、通断，精度高，带背光屏，操作简单。' 
-    },
-    { 
-      id: '4', 
-      name: '电焊机', 
-      status: 'available', 
-      location: '工程楼-301车间', 
-      description: '小型便携式电焊机，适合薄板焊接，操作简单，安全性高，附带焊接面罩。' 
-    },
-    { 
-      id: '5', 
-      name: '手电钻', 
-      status: 'borrowed', 
-      location: '信息C座-105工具间', 
-      description: '轻便手电钻，双速调节，适合家庭装修和小件加工，电池续航4小时。' 
-    },
-    { 
-      id: '6', 
-      name: '水平仪', 
-      status: 'available', 
-      location: '土木楼-401测量室', 
-      description: '高精度激光水平仪，自动找平，红绿双线，适用于墙面、地面找平，误差±1mm。' 
+// 从后端获取工具详情
+const fetchToolDetail = async (id: string) => {
+  try {
+    const response = await axios.get(`/api/tools/${id}`)
+    if (response.data.success) {
+      tool.value = response.data.data
+    } else {
+      alert('获取工具详情失败: ' + response.data.message)
     }
-  ]
-
-  const found = tools.find(t => t.id === id)
-  tool.value = found || null
+  } catch (error: any) {
+    console.error('获取工具详情错误:', error)
+    alert('获取工具详情失败，请检查网络或联系管理员')
+  }
 }
 
-// 模拟图片（实际项目中从后端获取）
-const toolImage = ref('/images/tool-placeholder.jpg') // 你可以替换为真实图片路径
+// 模拟图片（实际项目中可从后端返回图片URL）
+const toolImage = ref('/images/tool-placeholder.jpg')
 
 onMounted(() => {
-  loadToolById(route.params.id as string)
+  const id = route.params.id as string
+  if (id) {
+    fetchToolDetail(id)
+  }
 })
 
 // 跳转到社区聊天页
@@ -175,20 +144,22 @@ const submitApply = async () => {
   }
 
   try {
-    // 模拟用户ID和工具所有者ID（实际项目中应从登录状态获取）
-    const currentUserId = 1 // 当前用户ID
-    const toolOwnerId = 2 // 工具所有者ID
+    // 从 localStorage 获取当前用户ID（假设登录后存了 userToken 或 userInfo）
+    const userInfoStr = localStorage.getItem('userInfo')
+    const userInfo = userInfoStr ? JSON.parse(userInfoStr) : null
+    const currentUserId = userInfo?.id || 1 // fallback to 1 for demo
 
     const response = await axios.post('/api/borrow/apply', {
       toolId: tool.value.id,
       borrowerId: currentUserId,
-      ownerId: toolOwnerId,
+      ownerId: tool.value.ownerId, // 从后端返回的 tool 数据中获取
       borrowDays: applyForm.value.borrowDays,
       applyReason: applyForm.value.applyReason
     })
 
     if (response.data.success) {
       alert('✅ 借用申请提交成功！等待物品所有者确认。')
+      // 更新本地状态（实际项目中可重新拉取详情）
       tool.value.status = 'pending'
       showApplyForm.value = false
       applyForm.value = {
@@ -198,7 +169,7 @@ const submitApply = async () => {
     } else {
       alert(`申请失败：${response.data.message}`)
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('申请借用失败：', error)
     alert('申请失败，请稍后重试')
   }
