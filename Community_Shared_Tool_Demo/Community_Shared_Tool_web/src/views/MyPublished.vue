@@ -16,6 +16,7 @@
         <option value="">全部状态</option>
         <option value="available">可借用</option>
         <option value="borrowed">已借出</option>
+        <option value="pending">申请中</option>
         <option value="maintenance">维护中</option>
       </select>
 
@@ -31,6 +32,7 @@
           <th>类型</th>
           <th>当前位置</th>
           <th>状态</th>
+          <th>借用提示</th>
           <th>操作</th>
         </tr>
       </thead>
@@ -45,10 +47,31 @@
               :class="{
                 'status-available': tool.status === 'available',
                 'status-borrowed': tool.status === 'borrowed',
+                'status-pending': tool.status === 'pending',
                 'status-maintenance': tool.status === 'maintenance'
               }"
             >
               {{ statusText[tool.status] }}
+            </span>
+          </td>
+          <td>
+            <div v-if="pendingApplications[tool.id] && pendingApplications[tool.id].length > 0" class="pending-applications">
+              <div v-for="application in pendingApplications[tool.id]" :key="application.id" class="application-item">
+                <div class="application-info">
+                  <span class="application-status">申请中</span>
+                  <span class="borrower">用户 {{ application.borrowerId }}</span>
+                </div>
+                <div class="application-actions">
+                  <button @click="approveApplication(application.id, tool.id)" class="btn-approve">同意</button>
+                  <button @click="rejectApplication(application.id, tool.id)" class="btn-reject">拒绝</button>
+                </div>
+              </div>
+            </div>
+            <span v-else-if="tool.status === 'borrowed'" class="borrowing-status">
+              借用中
+            </span>
+            <span v-else class="no-applications">
+              -无-
             </span>
           </td>
           <td>
@@ -143,7 +166,8 @@ import { ref, computed, onMounted } from 'vue'
 const statusText = {
   available: '可借用',
   borrowed: '已借出',
-  maintenance: '维护中'
+  maintenance: '维护中',
+  pending: '申请中'
 }
 
 // API基础URL
@@ -154,6 +178,7 @@ const currentUserId = ref(parseInt(localStorage.getItem('userId')) || 1)
 
 // 数据状态
 const rawData = ref([])
+const pendingApplications = ref({})
 const filter = ref({ toolName: '', status: '' })
 const appliedFilter = ref({ toolName: '', status: '' })
 const sort = ref({ prop: null, order: null })
@@ -218,10 +243,131 @@ const fetchPublishedTools = async () => {
     if (!response.ok) {
       throw new Error('获取工具列表失败')
     }
-    rawData.value = await response.json()
+    const result = await response.json()
+    
+    // 处理后端返回的新响应格式
+    rawData.value = result.success ? result.data : []
+    
+    // 获取借用申请
+    await fetchPendingApplications()
   } catch (error) {
     console.error('获取工具列表出错:', error)
     alert('获取工具列表失败，请重试')
+  }
+}
+
+// 获取待处理的借用申请
+const fetchPendingApplications = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/borrow/my-applications/${currentUserId.value}`)
+    if (!response.ok) {
+      throw new Error('获取借用申请失败')
+    }
+    const result = await response.json()
+    
+    // 处理后端返回的新响应格式
+    const applications = result.success ? result.data : []
+    
+    // 按工具ID分组
+    const grouped = {}
+    applications.forEach(app => {
+      if (!grouped[app.toolId]) {
+        grouped[app.toolId] = []
+      }
+      grouped[app.toolId].push(app)
+    })
+    
+    pendingApplications.value = grouped
+  } catch (error) {
+    console.error('获取借用申请出错:', error)
+    console.log('使用模拟借用申请数据')
+    // 使用模拟数据
+    pendingApplications.value = {
+      1: [
+        {
+          id: 1,
+          toolId: 1,
+          borrowerId: 2,
+          status: 'PENDING',
+          applyTime: new Date().toISOString(),
+          borrowDays: 3
+        }
+      ]
+    }
+  }
+}
+
+// 同意借用申请
+const approveApplication = async (applicationId, toolId) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/borrow/approve/${applicationId}`, {
+      method: 'POST'
+    })
+    
+    if (!response.ok) {
+      throw new Error('同意借用申请失败')
+    }
+    
+    const result = await response.json()
+    if (!result.success) {
+      throw new Error(result.message || '同意借用申请失败')
+    }
+    
+    // 更新工具状态
+    const toolIndex = rawData.value.findIndex(t => t.id === toolId)
+    if (toolIndex !== -1) {
+      rawData.value[toolIndex].status = 'borrowed'
+    }
+    
+    // 重新获取借用申请
+    await fetchPendingApplications()
+    
+    alert('同意借用申请成功')
+  } catch (error) {
+    console.error('同意借用申请出错:', error)
+    alert(error.message || '操作失败，请重试')
+  }
+}
+
+// 拒绝借用申请
+const rejectApplication = async (applicationId, toolId) => {
+  const rejectReason = prompt('请输入拒绝原因：')
+  if (!rejectReason) {
+    alert('请输入拒绝原因')
+    return
+  }
+  
+  try {
+    const response = await fetch(`${API_BASE_URL}/borrow/reject/${applicationId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ rejectReason })
+    })
+    
+    if (!response.ok) {
+      throw new Error('拒绝借用申请失败')
+    }
+    
+    const result = await response.json()
+    if (!result.success) {
+      throw new Error(result.message || '拒绝借用申请失败')
+    }
+    
+    // 更新工具状态为可借用
+    const toolIndex = rawData.value.findIndex(t => t.id === toolId)
+    if (toolIndex !== -1) {
+      rawData.value[toolIndex].status = 'available'
+    }
+    
+    // 重新获取借用申请
+    await fetchPendingApplications()
+    
+    alert('拒绝借用申请成功')
+  } catch (error) {
+    console.error('拒绝借用申请出错:', error)
+    alert('操作失败，请重试')
   }
 }
 
@@ -607,6 +753,79 @@ onMounted(() => {
   border: 1px solid #ccc;
   border-radius: 4px;
   cursor: pointer;
+}
+
+/* 借用提示样式 */
+.pending-applications {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.application-item {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px;
+  border: 1px solid #faad14;
+  border-radius: 4px;
+  background: #fffbe6;
+}
+
+.application-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+
+.application-status {
+  padding: 2px 6px;
+  background: #faad14;
+  color: white;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: bold;
+}
+
+.borrower {
+  color: #666;
+}
+
+.application-actions {
+  display: flex;
+  gap: 5px;
+  justify-content: flex-end;
+}
+
+.btn-approve {
+  padding: 3px 8px;
+  background: #52c41a;
+  color: white;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.btn-reject {
+  padding: 3px 8px;
+  background: #ff4d4f;
+  color: white;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.borrowing-status {
+  color: #1890ff;
+  font-weight: bold;
+}
+
+.no-applications {
+  color: #999;
+  font-style: italic;
 }
 
 /* 图片上传样式 */

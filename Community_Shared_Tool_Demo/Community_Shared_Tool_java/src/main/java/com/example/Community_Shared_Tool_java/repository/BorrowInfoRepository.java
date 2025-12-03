@@ -26,4 +26,7 @@ public interface BorrowInfoRepository extends JpaRepository<BorrowInfo, Integer>
     
     // 根据状态查询借用信息
     List<BorrowInfo> findByStatus(String status);
+    
+    // 根据工具ID和借用者ID查询
+    List<BorrowInfo> findByToolIdAndBorrowerId(Integer toolId, Integer borrowerId);
 }

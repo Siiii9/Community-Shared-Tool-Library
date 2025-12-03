@@ -30,6 +30,9 @@ public class BorrowInfo {
     @Column(name = "owner_id", nullable = false)
     private Integer ownerId;
     
+    @Column(name = "borrow_record_id")
+    private Integer borrowRecordId; // 与BorrowRecord的直接关联字段
+    
     @Column(name = "borrow_time")
     @CreationTimestamp
     private Timestamp borrowTime;
@@ -40,8 +43,8 @@ public class BorrowInfo {
     @Column(name = "actual_return_time")
     private Timestamp actualReturnTime;
     
-    @Column(name = "status", nullable = false, length = 20)
-    private String status; // borrowing: 借用中, returned: 已归还, overdue: 已逾期
+    @Column(name = "status", nullable = false, length = 50)
+    private String status; // borrowing: 借用中, returned: 已归还, overdue: 已逾期, waiting_return_confirm: 等待归还确认
     
     @Column(name = "update_time")
     @UpdateTimestamp
@@ -134,5 +137,13 @@ public class BorrowInfo {
     
     public void setUpdateTime(Timestamp updateTime) {
         this.updateTime = updateTime;
+    }
+    
+    public Integer getBorrowRecordId() {
+        return borrowRecordId;
+    }
+    
+    public void setBorrowRecordId(Integer borrowRecordId) {
+        this.borrowRecordId = borrowRecordId;
     }
 }

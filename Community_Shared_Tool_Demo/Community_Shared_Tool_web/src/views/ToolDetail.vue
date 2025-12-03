@@ -91,7 +91,7 @@ const tool = ref<any>(null)
 // 从API加载工具详情
 const loadToolById = async (id: string) => {
   try {
-    const response = await axios.get(`/api/published-tools/${id}`)
+    const response = await axios.get(`http://localhost:8084/api/published-tools/${id}`)
     if (response.data) {
       tool.value = {
         id: response.data.id,
@@ -100,7 +100,8 @@ const loadToolById = async (id: string) => {
         location: response.data.location,
         description: response.data.description,
         borrowDaysLimit: response.data.borrowDaysLimit,
-        imageUrl: response.data.imageUrl
+        imageUrl: response.data.imageUrl,
+        ownerId: response.data.ownerId
       }
     }
   } catch (error) {
@@ -166,10 +167,11 @@ const submitApply = async () => {
 
   try {
     // 动态获取用户ID和工具所有者ID
-    const currentUserId = parseInt(localStorage.getItem('userId')) || 1 // 当前用户ID
-    const toolOwnerId = 2 // 工具所有者ID
+    const userIdStr = localStorage.getItem('userId');
+    const currentUserId = userIdStr ? parseInt(userIdStr) : 1 // 当前用户ID
+    const toolOwnerId = tool.value.ownerId // 从工具对象中获取实际的所有者ID
 
-    const response = await axios.post('/api/borrow/apply', {
+    const response = await axios.post('http://localhost:8084/api/borrow/apply', {
       toolId: tool.value.id,
       borrowerId: currentUserId,
       ownerId: toolOwnerId,
@@ -177,7 +179,7 @@ const submitApply = async () => {
       applyReason: applyForm.value.applyReason
     })
 
-    if (response.data) {
+    if (response.data.success) {
       alert('✅ 借用申请提交成功！等待物品所有者确认。')
       tool.value.status = 'pending'
       showApplyForm.value = false
@@ -186,7 +188,7 @@ const submitApply = async () => {
         applyReason: ''
       }
     } else {
-      alert('申请失败，请稍后重试')
+      alert('申请失败：' + response.data.message)
     }
   } catch (error) {
     console.error('申请借用失败：', error)
