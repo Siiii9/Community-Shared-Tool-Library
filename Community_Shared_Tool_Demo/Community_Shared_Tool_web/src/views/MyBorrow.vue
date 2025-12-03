@@ -35,7 +35,7 @@
         </tr>
       </thead>
       <tbody>
-        <tr v-for="(record, index) in paginatedData" :key="index">
+        <tr v-for="(record, index) in paginatedData" :key="record.id">
           <td>{{ formatDate(record.borrowTime) }}</td>
           <td>{{ record.toolName }}</td>
           <td>{{ record.toolType }}</td>
@@ -44,22 +44,18 @@
           <td>
             <span
               :class="{
-                'status-pending': record.status === 'PENDING',
-                'status-approved': record.status === 'APPROVED',
-                'status-taken': record.status === 'TAKEN',
-                'status-returned': record.status === 'RETURNED',
-                'status-rejected': record.status === 'REJECTED'
+                'status-borrowing': record.status === 'borrowing',
+                'status-returned': record.status === 'returned',
+                'status-overdue': record.status === 'overdue'
               }"
             >
               {{ statusText[record.status] }}
             </span>
           </td>
           <td>
-            <button v-if="record.status === 'TAKEN'" @click="handleReturn(record)" class="btn-return">归还</button>
-            <button v-else-if="record.status === 'APPROVED'" @click="confirmTake(record)" class="btn-take">确认取用</button>
-            <span v-else-if="record.status === 'PENDING'" class="status-pending">等待同意</span>
-            <span v-else-if="record.status === 'REJECTED'" class="status-rejected">已拒绝</span>
-            <span v-else-if="record.status === 'RETURNED'" class="status-returned">已归还</span>
+            <button v-if="record.status === 'borrowing'" @click="handleReturn(record)" class="btn-return">归还</button>
+            <span v-else-if="record.status === 'returned'" class="status-returned">已归还</span>
+            <span v-else-if="record.status === 'overdue'" class="status-overdue">已逾期</span>
             <span v-else>—</span>
           </td>
         </tr>
@@ -80,24 +76,20 @@
 import { ref, computed, onMounted } from 'vue'
 import axios from 'axios'
 
+// 状态映射
 const statusText = {
-  PENDING: '待同意',
-  APPROVED: '已同意',
-  TAKEN: '已取用',
-  RETURNED: '已归还',
-  REJECTED: '已拒绝'
+  borrowing: '借用中',
+  returned: '已归还',
+  overdue: '已逾期'
 }
 
-// 模拟工具数据
-const tools = ref([
-  { id: 1, name: '梯子', type: '高空作业工具' },
-  { id: 2, name: '冲击钻', type: '电动工具' },
-  { id: 3, name: '万用表', type: '测量工具' },
-  { id: 4, name: '电焊机', type: '焊接工具' },
-  { id: 5, name: '手电钻', type: '电动工具' },
-  { id: 6, name: '水平仪', type: '测量工具' }
-])
+// API基础URL
+const API_BASE_URL = 'http://localhost:8080/api'
 
+// 当前登录用户ID（模拟，实际应该从登录状态获取）
+const currentUserId = ref(1)
+
+// 数据状态
 const rawData = ref([])
 const filter = ref({ toolName: '', status: '' })
 const sort = ref({ prop: null, order: null })
@@ -139,40 +131,21 @@ const formatDate = (isoStr) => {
 
 const refreshData = async () => {
   try {
-    // 模拟当前用户ID（实际项目中应从登录状态获取）
-    const currentUserId = 1
-    
-    const response = await axios.get(`/api/borrow/my-borrows/${currentUserId}`)
-    if (response.data.success) {
-      rawData.value = response.data.data.map(record => {
-        const tool = tools.value.find(t => t.id === record.toolId) || { name: '未知工具', type: '未知类型' }
-        return {
-          id: record.id,
-          toolName: tool.name,
-          toolType: tool.type,
-          borrowTime: record.applyTime,
-          expectedReturnTime: record.expectedReturnTime,
-          actualReturnTime: record.returnTime,
-          status: record.status,
-          borrowRecord: record
-        }
-      })
-    }
+    // 调用新的BorrowInfo API获取借用记录
+    const response = await axios.get(`${API_BASE_URL}/borrow-infos/borrower/${currentUserId.value}`)
+    rawData.value = response.data.map(record => ({
+      id: record.id,
+      toolName: record.toolName,
+      toolType: record.toolType,
+      borrowTime: record.borrowTime,
+      expectedReturnTime: record.expectedReturnTime,
+      actualReturnTime: record.actualReturnTime,
+      status: record.status,
+      borrowRecord: record
+    }))
   } catch (error) {
     console.error('获取借用记录失败：', error)
-    // 模拟数据
-    rawData.value = [
-      {
-        id: 1,
-        toolName: '梯子',
-        toolType: '高空作业工具',
-        borrowTime: new Date().toISOString(),
-        expectedReturnTime: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
-        actualReturnTime: null,
-        status: 'PENDING',
-        borrowRecord: { id: 1, toolId: 1, status: 'PENDING' }
-      }
-    ]
+    alert('获取借用记录失败，请重试')
   }
 }
 
@@ -208,33 +181,18 @@ const exportBorrowList = () => {
   link.click()
 }
 
+// 归还工具
 const handleReturn = async (record) => {
   if (confirm(`确定归还工具【${record.toolName}】？`)) {
     try {
-      const response = await axios.post(`/api/borrow/return/${record.borrowRecord.id}`)
-      if (response.data.success) {
+      const response = await axios.patch(`${API_BASE_URL}/borrow-infos/${record.id}/return`)
+      if (response.status === 200) {
         alert('归还成功！')
         await refreshData()
       }
     } catch (error) {
       console.error('归还失败：', error)
       alert('归还失败，请重试')
-    }
-  }
-}
-
-// 确认取用
-const confirmTake = async (record) => {
-  if (confirm(`确认已取用工具【${record.toolName}】？`)) {
-    try {
-      const response = await axios.post(`/api/borrow/take/${record.borrowRecord.id}`)
-      if (response.data.success) {
-        alert('取用确认成功！')
-        await refreshData()
-      }
-    } catch (error) {
-      console.error('取用确认失败：', error)
-      alert('操作失败，请重试')
     }
   }
 }
@@ -299,22 +257,8 @@ onMounted(() => {
   user-select: none;
 }
 
-.status-pending {
-  background: #faad14;
-  color: white;
-  padding: 2px 8px;
-  border-radius: 4px;
-}
-
-.status-approved {
+.status-borrowing {
   background: #1890ff;
-  color: white;
-  padding: 2px 8px;
-  border-radius: 4px;
-}
-
-.status-taken {
-  background: #52c41a;
   color: white;
   padding: 2px 8px;
   border-radius: 4px;
@@ -327,7 +271,7 @@ onMounted(() => {
   border-radius: 4px;
 }
 
-.status-rejected {
+.status-overdue {
   background: #ff4d4f;
   color: white;
   padding: 2px 8px;

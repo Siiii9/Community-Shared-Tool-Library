@@ -49,9 +49,10 @@
               id="borrowDays" 
               v-model="applyForm.borrowDays" 
               min="1" 
-              max="30" 
+              :max="tool?.borrowDaysLimit || 30" 
               required
             >
+            <span class="limit-info">（最多可借用 {{ tool?.borrowDaysLimit || 30 }} 天）</span>
           </div>
           <div class="form-group">
             <label for="applyReason">借用原因：</label>
@@ -77,35 +78,53 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import axios from 'axios' // 🔹 新增：导入 axios
+import axios from 'axios'
 
 const route = useRoute()
 const router = useRouter()
 
 const tool = ref<any>(null)
 
-// 从后端获取工具详情
-const fetchToolDetail = async (id: string) => {
+// 从API加载工具详情（使用你队友的接口路径）
+const loadToolById = async (id: string) => {
   try {
-    const response = await axios.get(`/api/tools/${id}`)
-    if (response.data.success) {
-      tool.value = response.data.data
+    const response = await axios.get(`/api/published-tools/${id}`)
+    if (response.data) {
+      // 转换后端数据格式为前端需要的格式（保留你队友的数据结构）
+      tool.value = {
+        id: response.data.id,
+        name: response.data.toolName,
+        status: response.data.status,
+        location: response.data.location,
+        description: response.data.description || '暂无介绍',
+        borrowDaysLimit: response.data.borrowDaysLimit,
+        ownerId: response.data.ownerId // 保留 ownerId 用于借用申请
+      }
     } else {
-      alert('获取工具详情失败: ' + response.data.message)
+      alert('获取工具详情失败: 服务器返回空数据')
     }
   } catch (error: any) {
-    console.error('获取工具详情错误:', error)
-    alert('获取工具详情失败，请检查网络或联系管理员')
+    console.error('获取工具详情失败:', error)
+    // 根据错误类型显示不同提示
+    if (error.response?.status === 404) {
+      alert('工具不存在')
+    } else if (error.response?.status === 500) {
+      alert('服务器内部错误，请稍后重试')
+    } else {
+      alert('获取工具详情失败，请检查网络连接')
+    }
   }
 }
 
 // 模拟图片（实际项目中可从后端返回图片URL）
 const toolImage = ref('/images/tool-placeholder.jpg')
 
-onMounted(() => {
+onMounted(async () => {
   const id = route.params.id as string
   if (id) {
-    fetchToolDetail(id)
+    await loadToolById(id)
+  } else {
+    alert('无效的工具ID')
   }
 })
 
@@ -143,12 +162,19 @@ const submitApply = async () => {
     return
   }
 
+  // 检查借用天数是否超过限制
+  if (tool.value?.borrowDaysLimit && applyForm.value.borrowDays > tool.value.borrowDaysLimit) {
+    alert(`借用天数不能超过最大限制${tool.value.borrowDaysLimit}天`)
+    return
+  }
+
   try {
     // 从 localStorage 获取当前用户ID（假设登录后存了 userToken 或 userInfo）
     const userInfoStr = localStorage.getItem('userInfo')
     const userInfo = userInfoStr ? JSON.parse(userInfoStr) : null
     const currentUserId = userInfo?.id || 1 // fallback to 1 for demo
 
+    // 发送借用申请（保留你的完整逻辑）
     const response = await axios.post('/api/borrow/apply', {
       toolId: tool.value.id,
       borrowerId: currentUserId,
@@ -157,7 +183,7 @@ const submitApply = async () => {
       applyReason: applyForm.value.applyReason
     })
 
-    if (response.data.success) {
+    if (response.data) {
       alert('✅ 借用申请提交成功！等待物品所有者确认。')
       // 更新本地状态（实际项目中可重新拉取详情）
       tool.value.status = 'pending'
@@ -167,11 +193,16 @@ const submitApply = async () => {
         applyReason: ''
       }
     } else {
-      alert(`申请失败：${response.data.message}`)
+      alert('申请失败，请稍后重试')
     }
   } catch (error: any) {
     console.error('申请借用失败：', error)
-    alert('申请失败，请稍后重试')
+    // 根据错误类型显示不同提示
+    if (error.response?.data?.message) {
+      alert('申请失败：' + error.response.data.message)
+    } else {
+      alert('申请失败，请稍后重试')
+    }
   }
 }
 </script>
@@ -295,6 +326,13 @@ const submitApply = async () => {
   margin-bottom: 5px;
   font-weight: bold;
   color: #333;
+}
+
+.limit-info {
+  display: block;
+  margin-top: 5px;
+  font-size: 12px;
+  color: #666;
 }
 
 .form-group input,
