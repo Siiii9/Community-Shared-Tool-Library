@@ -46,7 +46,8 @@
               :class="{
                 'status-borrowing': record.status === 'borrowing',
                 'status-returned': record.status === 'returned',
-                'status-overdue': record.status === 'overdue'
+                'status-overdue': record.status === 'overdue',
+                'status-waiting': record.status === 'waiting_return_confirm'
               }"
             >
               {{ statusText[record.status] }}
@@ -55,6 +56,7 @@
           <td>
             <button v-if="record.status === 'borrowing' || record.status === 'overdue'" @click="handleReturn(record)" class="btn-return">归还</button>
             <span v-else-if="record.status === 'returned'" class="status-returned">已归还</span>
+            <span v-else-if="record.status === 'waiting_return_confirm'" class="status-waiting">等待确认</span>
             <span v-else>—</span>
           </td>
         </tr>
@@ -79,11 +81,12 @@ import axios from 'axios'
 const statusText = {
   borrowing: '借用中',
   returned: '已归还',
-  overdue: '已逾期'
+  overdue: '已逾期',
+  waiting_return_confirm: '等待归还确认'
 }
 
 // API基础URL
-const API_BASE_URL = '/api'
+const API_BASE_URL = 'http://localhost:8084/api'
 
 // 当前登录用户ID（从localStorage动态获取）
 const userIdStr = localStorage.getItem('userId');
@@ -190,16 +193,20 @@ const exportBorrowList = () => {
 const handleReturn = async (record) => {
   if (confirm(`确定归还工具【${record.toolName}】？`)) {
     try {
+      console.log('开始归还工具，record信息：', record)
       const response = await axios.patch(`${API_BASE_URL}/borrow-infos/${record.id}/return`)
+      console.log('归还工具响应：', response)
       if (response.data.success) {
         alert('归还成功！')
         await refreshData()
       } else {
+        console.error('归还失败，服务器返回错误：', response.data.message)
         alert('归还失败：' + response.data.message)
       }
     } catch (error) {
-      console.error('归还失败：', error)
-      alert('归还失败，请重试')
+      console.error('归还失败，网络或系统错误：', error)
+      console.error('错误详情：', error.response ? error.response : error.message)
+      alert('归还失败，请重试\n错误信息：' + (error.response?.data?.message || error.message))
     }
   }
 }
@@ -280,6 +287,13 @@ onMounted(() => {
 
 .status-overdue {
   background: #ff4d4f;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.status-waiting {
+  background: #faad14;
   color: white;
   padding: 2px 8px;
   border-radius: 4px;

@@ -122,4 +122,22 @@ public class BorrowInfoController {
             return ResponseEntity.badRequest().body(response);
         }
     }
+    
+    // 拒绝归还工具（所有者拒绝）
+    @PatchMapping("/{id}/reject-return")
+    public ResponseEntity<Map<String, Object>> rejectReturn(@PathVariable Integer id) {
+        try {
+            BorrowInfo updatedBorrowInfo = borrowInfoService.rejectReturn(id);
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("data", updatedBorrowInfo);
+            response.put("message", "工具归还拒绝成功");
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+        }
+    }
 }
