@@ -34,10 +34,11 @@ declare global {
   }
 }
 
-import { onMounted, onUnmounted } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 import AMapLoader from '@amap/amap-jsapi-loader'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
+import axios from 'axios'
 
 const router = useRouter()
 
@@ -50,66 +51,106 @@ const MY_POSITION = {
   lat: 40.141686
 }
 
-// 🔹 5个真实工具（分布在其他5栋楼）
-const TOOLS = [
-  { id: 1, name: '冲击钻', lng: 116.235718, lat: 40.141605, location: '工学A座-105工具间', status: 'available' },
-  { id: 2, name: '万用表', lng: 116.238418, lat: 40.142330, location: '信息C座-301电子室', status: 'borrowed' },
-  { id: 3, name: '电焊机', lng: 116.237475, lat: 40.141751, location: '信息A座-202车间', status: 'available' },
-  { id: 4, name: '手电钻', lng: 116.236858, lat: 40.141954, location: '工学B座-101实验室', status: 'available' },
-  { id: 5, name: '水平仪', lng: 116.238675, lat: 40.140950, location: '图书馆-工具角', status: 'borrowed' },
-]
+// 工具列表
+const tools = ref([])
 
-// 添加5个工具标记
+// 对同一地点的工具进行分组
+const groupToolsByLocation = () => {
+  const locationGroups = new Map<string, any[]>()
+  
+  tools.value.forEach(tool => {
+    // 使用经纬度作为唯一标识，考虑到浮点数精度问题，四舍五入到小数点后5位
+    const key = `${tool.lng.toFixed(5)},${tool.lat.toFixed(5)}`
+    if (!locationGroups.has(key)) {
+      locationGroups.set(key, [])
+    }
+    locationGroups.get(key)?.push(tool)
+  })
+  
+  return Array.from(locationGroups.values())
+}
+
+// 添加工具标记
 const addToolMarkers = () => {
-  TOOLS.forEach(tool => {
-    const iconColor = tool.status === 'available' ? '#52c41a' : '#faad14'
+  const locationGroups = groupToolsByLocation()
+  
+  locationGroups.forEach(toolGroup => {
+    const firstTool = toolGroup[0]
+    const availableCount = toolGroup.filter(tool => tool.status === 'available').length
+    const totalCount = toolGroup.length
+    
+    // 确定标记颜色
+    let iconColor = '#52c41a' // 默认绿色（可用）
+    if (availableCount === 0) {
+      iconColor = '#faad14' // 所有工具都已借出时显示黄色
+    } else if (availableCount < totalCount) {
+      iconColor = '#ff7875' // 部分可用时显示红色
+    }
+
+    // 创建标记内容，显示工具数量
+    let markerContent = `<div style="
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: ${iconColor};
+      border: 2px solid white;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: bold;
+      font-size: 12px;
+    ">${totalCount}</div>`
 
     const marker = new window.AMap.Marker({
-      position: [tool.lng, tool.lat],
-      title: tool.name,
+      position: [firstTool.lng, firstTool.lat],
+      title: `${firstTool.location} (${totalCount}个工具)`,
       map: map,
-      content: `<div style="
-        width: 30px;
-        height: 30px;
-        border-radius: 50%;
-        background: ${iconColor};
-        border: 2px solid white;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: white;
-        font-weight: bold;
-        font-size: 14px;
-      ">●</div>`,
+      content: markerContent,
       offset: new window.AMap.Pixel(-15, -15)
     })
 
-    const infoWindow = new window.AMap.InfoWindow({
-      content: `
-        <div style="padding:12px; max-width:200px;">
-          <h4 style="margin:0 0 8px 0;">${tool.name}</h4>
-          <p><strong>位置：</strong>${tool.location}</p>
-          <p><strong>状态：</strong>
-            <span style="color: ${iconColor}">
-              ${tool.status === 'available' ? '可用' : '已借出'}
-            </span>
-          </p>
-          <div style="display:flex; gap:8px; margin-top:12px;">
-            <button style="
-              padding:4px 8px;
-              background:#1890ff;
-              color:white;
-              border:none;
-              border-radius:4px;
-              cursor:pointer;
-              font-size:12px;
-            " onclick="window.toolDetailClick(${tool.id})">
-              详细
-            </button>
+    // 创建信息窗口内容，显示该地点的所有工具列表
+    let infoWindowContent = `
+      <div style="padding:12px; max-width:250px;">
+        <h4 style="margin:0 0 10px 0;">${firstTool.location}</h4>
+        <p style="margin:0 0 10px 0; color:#666;">共${totalCount}个工具，${availableCount}个可用</p>
+        <div style="max-height:200px; overflow-y:auto;">
+    `
+    
+    // 添加工具列表
+    toolGroup.forEach(tool => {
+      const toolStatus = tool.status === 'available' ? '可用' : '已借出'
+      const statusColor = tool.status === 'available' ? '#52c41a' : '#faad14'
+      
+      infoWindowContent += `
+        <div style="
+          padding:8px;
+          margin-bottom:8px;
+          border-radius:4px;
+          background:#f5f5f5;
+          cursor:pointer;
+          transition:background 0.2s;
+        " onmouseover="this.style.background='#e8f4f8'" onmouseout="this.style.background='#f5f5f5'" onclick="window.toolDetailClick(${tool.id})">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-weight:500;">${tool.name}</span>
+            <span style="color:${statusColor}; font-size:12px;">${toolStatus}</span>
           </div>
         </div>
-      `,
+      `
+    })
+    
+    infoWindowContent += `
+        </div>
+        <div style="margin-top:10px; font-size:12px; color:#999;">
+          点击工具名称查看详情
+        </div>
+      </div>
+    `
+
+    const infoWindow = new window.AMap.InfoWindow({
+      content: infoWindowContent,
       offset: new window.AMap.Pixel(0, -10)
     })
 
@@ -189,8 +230,9 @@ const locateAndReload = () => {
   initMap()
 }
 
-const refreshMap = () => {
+const refreshMap = async () => {
   if (map) {
+    await fetchTools()
     map.clearMap()
     addMyLocationMarker()
     addToolMarkers()
@@ -202,8 +244,30 @@ const openFilter = () => {
   ElMessage.info('筛选功能开发中')
 }
 
+// 获取工具列表
+const fetchTools = async () => {
+  try {
+    // 使用search接口获取所有工具，不传递任何筛选参数
+    const response = await axios.get('/api/published-tools/search')
+    if (response.data && response.data.length > 0) {
+      tools.value = response.data.map((tool: any) => ({
+        id: tool.id,
+        name: tool.toolName,
+        lng: tool.longitude || 116.238549,
+        lat: tool.latitude || 40.141686,
+        location: tool.location,
+        status: tool.status
+      }))
+    }
+  } catch (error) {
+    console.error('获取工具列表失败:', error)
+    ElMessage.warning('获取工具列表失败，请检查网络连接')
+  }
+}
+
 // 首次进入自动加载
-onMounted(() => {
+onMounted(async () => {
+  await fetchTools()
   initMap()
 })
 

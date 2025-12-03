@@ -48,9 +48,10 @@
               id="borrowDays" 
               v-model="applyForm.borrowDays" 
               min="1" 
-              max="30" 
+              :max="tool?.borrowDaysLimit || 30" 
               required
             >
+            <span class="limit-info">（最多可借用 {{ tool?.borrowDaysLimit || 30 }} 天）</span>
           </div>
           <div class="form-group">
             <label for="applyReason">借用原因：</label>
@@ -76,68 +77,37 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import axios from 'axios'
 
 const route = useRoute()
 const router = useRouter()
 
 const tool = ref<any>(null)
 
-// 模拟工具数据（根据 ID 加载）
-const loadToolById = (id: string) => {
-  const tools = [
-    { 
-      id: '1', 
-      name: '梯子', 
-      status: 'available', 
-      location: '信息B座-201实验室', 
-      description: '铝合金伸缩梯，最大承重150kg，适合高处作业。附带防滑脚垫，安全可靠。' 
-    },
-    { 
-      id: '2', 
-      name: '冲击钻', 
-      status: 'borrowed', 
-      location: '信息B座-205电子间', 
-      description: '博世专业级冲击钻，功率850W，带多种钻头，适用于混凝土和砖墙钻孔。' 
-    },
-    { 
-      id: '3', 
-      name: '万用表', 
-      status: 'available', 
-      location: '信息A座-101测试室', 
-      description: '数字万用表，可测电压、电流、电阻、通断，精度高，带背光屏，操作简单。' 
-    },
-    { 
-      id: '4', 
-      name: '电焊机', 
-      status: 'available', 
-      location: '工程楼-301车间', 
-      description: '小型便携式电焊机，适合薄板焊接，操作简单，安全性高，附带焊接面罩。' 
-    },
-    { 
-      id: '5', 
-      name: '手电钻', 
-      status: 'borrowed', 
-      location: '信息C座-105工具间', 
-      description: '轻便手电钻，双速调节，适合家庭装修和小件加工，电池续航4小时。' 
-    },
-    { 
-      id: '6', 
-      name: '水平仪', 
-      status: 'available', 
-      location: '土木楼-401测量室', 
-      description: '高精度激光水平仪，自动找平，红绿双线，适用于墙面、地面找平，误差±1mm。' 
+// 从API加载工具详情
+const loadToolById = async (id: string) => {
+  try {
+    const response = await axios.get(`/api/published-tools/${id}`)
+    if (response.data) {
+      tool.value = {
+        id: response.data.id,
+        name: response.data.toolName,
+        status: response.data.status,
+        location: response.data.location,
+        description: response.data.description,
+        borrowDaysLimit: response.data.borrowDaysLimit
+      }
     }
-  ]
-
-  const found = tools.find(t => t.id === id)
-  tool.value = found || null
+  } catch (error) {
+    console.error('获取工具详情失败:', error)
+  }
 }
 
 // 模拟图片（实际项目中从后端获取）
 const toolImage = ref('/images/tool-placeholder.jpg') // 你可以替换为真实图片路径
 
-onMounted(() => {
-  loadToolById(route.params.id as string)
+onMounted(async () => {
+  await loadToolById(route.params.id as string)
 })
 
 // 跳转到社区聊天页
@@ -174,6 +144,12 @@ const submitApply = async () => {
     return
   }
 
+  // 检查借用天数是否超过限制
+  if (tool.value.borrowDaysLimit && applyForm.value.borrowDays > tool.value.borrowDaysLimit) {
+    alert(`借用天数不能超过最大限制${tool.value.borrowDaysLimit}天`)
+    return
+  }
+
   try {
     // 模拟用户ID和工具所有者ID（实际项目中应从登录状态获取）
     const currentUserId = 1 // 当前用户ID
@@ -187,7 +163,7 @@ const submitApply = async () => {
       applyReason: applyForm.value.applyReason
     })
 
-    if (response.data.success) {
+    if (response.data) {
       alert('✅ 借用申请提交成功！等待物品所有者确认。')
       tool.value.status = 'pending'
       showApplyForm.value = false
@@ -196,7 +172,7 @@ const submitApply = async () => {
         applyReason: ''
       }
     } else {
-      alert(`申请失败：${response.data.message}`)
+      alert('申请失败，请稍后重试')
     }
   } catch (error) {
     console.error('申请借用失败：', error)
