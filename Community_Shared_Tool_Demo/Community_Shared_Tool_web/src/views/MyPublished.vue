@@ -103,6 +103,29 @@
               <label for="form-borrowDaysLimit">最大借用天数</label>
               <input v-model.number="formData.borrowDaysLimit" type="number" id="form-borrowDaysLimit" min="1" required />
             </div>
+            <div class="form-group">
+              <label>工具图片</label>
+              <div class="image-upload-container">
+                <input 
+                  type="file" 
+                  id="tool-image" 
+                  accept="image/*" 
+                  @change="handleImageUpload" 
+                  style="display: none"
+                />
+                <label for="tool-image" class="image-upload-btn">
+                  <span v-if="!formData.imageUrl">选择图片</span>
+                  <span v-else>更换图片</span>
+                </label>
+                <div v-if="formData.imageUrl" class="image-preview">
+                  <img :src="formData.imageUrl" alt="工具图片预览" />
+                  <button type="button" @click="removeImage" class="remove-image-btn">删除</button>
+                </div>
+                <div v-if="uploading" class="upload-progress">
+                  <span>上传中...</span>
+                </div>
+              </div>
+            </div>
             <div class="form-actions">
               <button type="submit" class="btn-primary">保存</button>
               <button type="button" @click="closeToolForm">取消</button>
@@ -139,6 +162,7 @@ const pagination = ref({ currentPage: 1, pageSize: 5 })
 // 表单状态
 const isFormVisible = ref(false)
 const formTitle = ref('发布新工具')
+const uploading = ref(false)
 const formData = ref({
   id: null,
   toolName: '',
@@ -147,6 +171,7 @@ const formData = ref({
   location: '',
   status: 'available',
   borrowDaysLimit: 7, // 默认最大借用天数为7天
+  imageUrl: '',
   ownerId: currentUserId.value,
   publishTime: new Date().toISOString()
 })
@@ -363,6 +388,57 @@ const changePage = (page) => {
   }
 }
 
+// 图片上传处理函数
+const handleImageUpload = async (event) => {
+  const file = event.target.files[0]
+  if (!file) return
+
+  // 检查文件类型
+  if (!file.type.startsWith('image/')) {
+    alert('请选择图片文件')
+    return
+  }
+
+  // 检查文件大小（限制为5MB）
+  if (file.size > 5 * 1024 * 1024) {
+    alert('图片大小不能超过5MB')
+    return
+  }
+
+  uploading.value = true
+  
+  try {
+    // 创建FormData对象
+    const uploadFormData = new FormData()
+    uploadFormData.append('image', file)
+    
+    // 上传图片到后端
+    const response = await fetch(`${API_BASE_URL}/upload/image`, {
+      method: 'POST',
+      body: uploadFormData
+    })
+    
+    if (!response.ok) {
+      throw new Error('图片上传失败')
+    }
+    
+    const result = await response.json()
+    formData.value.imageUrl = result.imageUrl
+    
+  } catch (error) {
+    console.error('图片上传出错:', error)
+    alert('图片上传失败，请重试')
+  } finally {
+    uploading.value = false
+    // 重置文件输入
+    event.target.value = ''
+  }
+}
+
+const removeImage = () => {
+  formData.value.imageUrl = ''
+}
+
 // 组件挂载时加载数据
 onMounted(() => {
   fetchPublishedTools()
@@ -531,5 +607,61 @@ onMounted(() => {
   border: 1px solid #ccc;
   border-radius: 4px;
   cursor: pointer;
+}
+
+/* 图片上传样式 */
+.image-upload-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.image-upload-btn {
+  display: inline-block;
+  padding: 8px 16px;
+  background: #f8f9fa;
+  border: 2px dashed #ccc;
+  border-radius: 4px;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+.image-upload-btn:hover {
+  background: #e9ecef;
+  border-color: #007bff;
+}
+
+.image-preview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.image-preview img {
+  max-width: 100px;
+  max-height: 100px;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+.remove-image-btn {
+  padding: 4px 8px;
+  background: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.remove-image-btn:hover {
+  background: #c82333;
+}
+
+.upload-progress {
+  color: #007bff;
+  font-style: italic;
 }
 </style>
