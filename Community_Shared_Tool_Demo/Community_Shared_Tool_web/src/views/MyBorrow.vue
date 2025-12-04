@@ -5,11 +5,9 @@
       <button @click="refreshData">刷新</button>
       <button @click="exportBorrowList">导出借用记录</button>
     </div>
-
     <div class="filter-form">
       <label for="toolName">工具名称</label>
       <input v-model="filter.toolName" id="toolName" placeholder="输入工具名称" />
-
       <label for="borrowStatus">借用状态</label>
       <select v-model="filter.status" id="borrowStatus">
         <option value="">全部状态</option>
@@ -17,11 +15,9 @@
         <option value="returned">已归还</option>
         <option value="overdue">已逾期</option>
       </select>
-
       <button @click="applyFilter">筛选</button>
       <button @click="resetFilter">重置</button>
     </div>
-
     <table class="data-table">
       <thead>
         <tr>
@@ -62,7 +58,6 @@
         </tr>
       </tbody>
     </table>
-
     <div class="pagination">
       <button @click="changePage(1)" :disabled="pagination.currentPage === 1">首页</button>
       <button @click="changePage(pagination.currentPage - 1)" :disabled="pagination.currentPage === 1">上一页</button>
@@ -72,11 +67,9 @@
     </div>
   </div>
 </template>
-
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import axios from 'axios'
-
 // 状态映射
 const statusText = {
   borrowing: '借用中',
@@ -84,20 +77,16 @@ const statusText = {
   overdue: '已逾期',
   waiting_return_confirm: '等待归还确认'
 }
-
 // API基础URL
 const API_BASE_URL = 'http://localhost:8084/api'
-
 // 当前登录用户ID（从localStorage动态获取）
 const userIdStr = localStorage.getItem('userId');
 const currentUserId = ref(userIdStr ? parseInt(userIdStr) : 1)
-
 // 数据状态
 const rawData = ref([])
 const filter = ref({ toolName: '', status: '' })
 const sort = ref({ prop: null, order: null })
 const pagination = ref({ currentPage: 1, pageSize: 5 })
-
 const filteredData = computed(() => {
   return rawData.value.filter(item => {
     const nameMatch = item.toolName.includes(filter.value.toolName)
@@ -105,7 +94,6 @@ const filteredData = computed(() => {
     return nameMatch && statusMatch
   })
 })
-
 const sortedData = computed(() => {
   if (!sort.value.prop) return filteredData.value
   return [...filteredData.value].sort((a, b) => {
@@ -113,14 +101,11 @@ const sortedData = computed(() => {
     return a[sort.value.prop] > b[sort.value.prop] ? order : -order
   })
 })
-
 const paginatedData = computed(() => {
   const start = (pagination.value.currentPage - 1) * pagination.value.pageSize
   return sortedData.value.slice(start, start + pagination.value.pageSize)
 })
-
 const maxPage = computed(() => Math.ceil(filteredData.value.length / pagination.value.pageSize))
-
 const formatDate = (isoStr) => {
   if (!isoStr) return '—'
   return new Date(isoStr).toLocaleString('zh-CN', {
@@ -131,7 +116,6 @@ const formatDate = (isoStr) => {
     minute: '2-digit'
   })
 }
-
 const refreshData = async () => {
   try {
     // 调用新的BorrowInfo API获取借用记录
@@ -156,16 +140,13 @@ const refreshData = async () => {
     alert('获取借用记录失败，请重试')
   }
 }
-
 const applyFilter = () => {
   pagination.value.currentPage = 1
 }
-
 const resetFilter = () => {
   filter.value = { toolName: '', status: '' }
   pagination.value.currentPage = 1
 }
-
 const sortData = (prop) => {
   if (sort.value.prop === prop) {
     sort.value.order = sort.value.order === 'ascending' ? 'descending' : 'ascending'
@@ -174,7 +155,6 @@ const sortData = (prop) => {
     sort.value.order = 'ascending'
   }
 }
-
 const exportBorrowList = () => {
   const csvContent = [
     '借用时间,工具名称,工具类型,预计归还,实际归还,状态',
@@ -188,7 +168,6 @@ const exportBorrowList = () => {
   link.download = `my_borrow_records_${new Date().toISOString().slice(0, 10)}.csv`
   link.click()
 }
-
 // 归还工具
 const handleReturn = async (record) => {
   if (confirm(`确定归还工具【${record.toolName}】？`)) {
@@ -210,23 +189,19 @@ const handleReturn = async (record) => {
     }
   }
 }
-
 const changePage = (page) => {
   if (page >= 1 && page <= maxPage.value) {
     pagination.value.currentPage = page
   }
 }
-
 onMounted(() => {
   refreshData()
 })
 </script>
-
 <style scoped>
 .my-borrow {
   padding: 20px;
 }
-
 .operation-buttons button,
 .filter-form button {
   margin-right: 10px;
@@ -236,7 +211,6 @@ onMounted(() => {
   background: #f8f9fa;
   cursor: pointer;
 }
-
 .filter-form {
   margin: 15px 0;
   display: flex;
@@ -244,61 +218,52 @@ onMounted(() => {
   gap: 12px;
   flex-wrap: wrap;
 }
-
 .filter-form input,
 .filter-form select {
   padding: 6px;
   border: 1px solid #ddd;
   border-radius: 4px;
 }
-
 .data-table {
   width: 100%;
   border-collapse: collapse;
   margin: 15px 0;
 }
-
 .data-table th,
 .data-table td {
   padding: 10px;
   text-align: left;
   border: 1px solid #eee;
 }
-
 .data-table th {
   background: #f5f7fa;
   cursor: pointer;
   user-select: none;
 }
-
 .status-borrowing {
   background: #1890ff;
   color: white;
   padding: 2px 8px;
   border-radius: 4px;
 }
-
 .status-returned {
   background: #722ed1;
   color: white;
   padding: 2px 8px;
   border-radius: 4px;
 }
-
 .status-overdue {
   background: #ff4d4f;
   color: white;
   padding: 2px 8px;
   border-radius: 4px;
 }
-
 .status-waiting {
   background: #faad14;
   color: white;
   padding: 2px 8px;
   border-radius: 4px;
 }
-
 .btn-take {
   background: #1890ff;
   color: white;
@@ -307,11 +272,9 @@ onMounted(() => {
   border-radius: 4px;
   cursor: pointer;
 }
-
 .btn-take:hover {
   background: #40a9ff;
 }
-
 .btn-return {
   padding: 4px 8px;
   background: #28a745;
@@ -320,12 +283,10 @@ onMounted(() => {
   border-radius: 4px;
   cursor: pointer;
 }
-
 .pagination {
   margin-top: 20px;
   text-align: center;
 }
-
 .pagination button {
   margin: 0 5px;
   padding: 6px 12px;

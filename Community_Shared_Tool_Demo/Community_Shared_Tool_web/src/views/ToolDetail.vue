@@ -7,7 +7,6 @@
         {{ tool?.status === 'available' ? '可用' : '已借出' }}
       </div>
     </div>
-
     <div class="detail-content">
       <!-- 图片展示 -->
       <div class="image-section">
@@ -17,14 +16,12 @@
           <p>暂无图片</p>
         </div>
       </div>
-
       <!-- 工具介绍 -->
       <div class="description">
         <h3>工具介绍</h3>
         <p>{{ tool?.description || '暂无介绍' }}</p>
         <p><strong>位置：</strong>{{ tool?.location }}</p>
       </div>
-
       <!-- 操作按钮 -->
     <div class="action-buttons">
       <button class="chat-btn" @click="goToChat">
@@ -40,7 +37,6 @@
         申请借用
       </button>
     </div>
-
     <!-- 借用申请对话框 -->
     <div v-if="showApplyForm" class="apply-dialog-overlay">
       <div class="apply-dialog">
@@ -78,17 +74,13 @@
     </div>
   </div>
 </template>
-
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
-
 const route = useRoute()
 const router = useRouter()
-
 const tool = ref<any>(null)
-
 // 从API加载工具详情
 const loadToolById = async (id: string) => {
   try {
@@ -118,7 +110,6 @@ const loadToolById = async (id: string) => {
     }
   }
 }
-
 // 获取完整图片URL
 const getFullImageUrl = (imageUrl: string) => {
   if (!imageUrl) return ''
@@ -130,7 +121,6 @@ const getFullImageUrl = (imageUrl: string) => {
   const baseUrl = 'http://localhost:8084'
   return baseUrl + imageUrl
 }
-
 onMounted(async () => {
   const id = route.params.id as string
   if (id) {
@@ -139,25 +129,21 @@ onMounted(async () => {
     alert('无效的工具ID')
   }
 })
-
 // 跳转到社区聊天页
 const goToChat = () => {
   router.push('/community-chat')
 }
-
 // 借用申请相关状态
 const showApplyForm = ref(false)
 const applyForm = ref({
   borrowDays: 3,
   applyReason: ''
 })
-
 // 显示申请对话框
 const showApplyDialog = () => {
   if (tool.value?.status !== 'available') return
   showApplyForm.value = true
 }
-
 // 取消申请
 const cancelApply = () => {
   showApplyForm.value = false
@@ -166,26 +152,22 @@ const cancelApply = () => {
     applyReason: ''
   }
 }
-
 // 提交借用申请
 const submitApply = async () => {
   if (!applyForm.value.borrowDays || !applyForm.value.applyReason.trim()) {
     alert('请填写完整的借用信息')
     return
   }
-
   // 检查借用天数是否超过限制
   if (tool.value.borrowDaysLimit && applyForm.value.borrowDays > tool.value.borrowDaysLimit) {
     alert(`借用天数不能超过最大限制${tool.value.borrowDaysLimit}天`)
     return
   }
-
   try {
     // 从 localStorage 获取当前用户ID
     const userIdStr = localStorage.getItem('userId');
     const currentUserId = userIdStr ? parseInt(userIdStr) : 1;
     const toolOwnerId = tool.value.ownerId;
-
     const response = await axios.post('/api/borrow/apply', {
       toolId: tool.value.id,
       borrowerId: currentUserId,
@@ -193,7 +175,6 @@ const submitApply = async () => {
       borrowDays: applyForm.value.borrowDays,
       applyReason: applyForm.value.applyReason
     })
-
     if (response.data.success) {
       alert('✅ 借用申请提交成功！等待物品所有者确认。')
       tool.value.status = 'pending'
@@ -215,27 +196,23 @@ const submitApply = async () => {
   }
 }
 </script>
-
 <style scoped>
 .tool-detail {
   padding: 20px;
   max-width: 800px;
   margin: 0 auto;
 }
-
 .detail-header {
   display: flex;
   align-items: center;
   gap: 20px;
   margin-bottom: 20px;
 }
-
 .detail-header h1 {
   color: #2c3e50;
   margin: 0;
   font-size: 1.8rem;
 }
-
 .status-badge {
   padding: 6px 16px;
   border-radius: 20px;
@@ -243,20 +220,16 @@ const submitApply = async () => {
   font-weight: bold;
   color: white;
 }
-
 .status-badge.available {
   background: #52c41a;
 }
-
 .status-badge.borrowed {
   background: #faad14;
 }
-
 .image-section {
   text-align: center;
   margin-bottom: 20px;
 }
-
 .main-image {
   width: 100%;
   max-height: 300px;
@@ -264,7 +237,6 @@ const submitApply = async () => {
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.1);
 }
-
 .no-image-placeholder {
   display: flex;
   flex-direction: column;
@@ -275,38 +247,31 @@ const submitApply = async () => {
   border-radius: 8px;
   color: #999;
 }
-
 .no-image-placeholder .material-icons {
   font-size: 48px;
   margin-bottom: 10px;
 }
-
 .no-image-placeholder p {
   margin: 0;
   font-size: 16px;
 }
-
 .description {
   margin-bottom: 25px;
 }
-
 .description h3 {
   color: #2c3e50;
   margin-bottom: 10px;
 }
-
 .description p {
   line-height: 1.7;
   color: #333;
   font-size: 1.05rem;
 }
-
 .action-buttons {
   display: flex;
   gap: 20px;
   justify-content: space-between;
 }
-
 .chat-btn, .borrow-btn {
   display: flex;
   align-items: center;
@@ -317,7 +282,6 @@ const submitApply = async () => {
   font-size: 16px;
   font-weight: bold;
 }
-
 /* 借用申请对话框样式 */
 .apply-dialog-overlay {
   position: fixed;
@@ -331,7 +295,6 @@ const submitApply = async () => {
   justify-content: center;
   z-index: 1000;
 }
-
 .apply-dialog {
   background: white;
   padding: 30px;
@@ -340,24 +303,20 @@ const submitApply = async () => {
   max-width: 500px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
 }
-
 .apply-dialog h3 {
   margin-bottom: 20px;
   color: #2c3e50;
   text-align: center;
 }
-
 .form-group {
   margin-bottom: 20px;
 }
-
 .form-group label {
   display: block;
   margin-bottom: 5px;
   font-weight: bold;
   color: #333;
 }
-
 .form-group input,
 .form-group textarea {
   width: 100%;
@@ -367,17 +326,14 @@ const submitApply = async () => {
   font-size: 14px;
   box-sizing: border-box;
 }
-
 .form-group textarea {
   resize: vertical;
 }
-
 .dialog-buttons {
   display: flex;
   gap: 10px;
   justify-content: flex-end;
 }
-
 .cancel-btn {
   padding: 10px 20px;
   border: 1px solid #ddd;
@@ -385,7 +341,6 @@ const submitApply = async () => {
   border-radius: 5px;
   cursor: pointer;
 }
-
 .submit-btn {
   padding: 10px 20px;
   background: #1890ff;
@@ -394,38 +349,31 @@ const submitApply = async () => {
   border-radius: 5px;
   cursor: pointer;
 }
-
 .submit-btn:hover {
   background: #40a9ff;
   cursor: pointer;
   transition: all 0.3s;
 }
-
 .chat-btn {
   background: #607D8B;
   color: white;
   flex: 1;
 }
-
 .chat-btn:hover {
   background: #455A64;
 }
-
 .borrow-btn {
   background: #4CAF50;
   color: white;
   flex: 1;
 }
-
 .borrow-btn:hover:not(:disabled) {
   background: #388E3C;
 }
-
 .borrow-btn:disabled {
   background: #bdbdbd;
   cursor: not-allowed;
 }
-
 .material-icons {
   font-size: 18px;
 }

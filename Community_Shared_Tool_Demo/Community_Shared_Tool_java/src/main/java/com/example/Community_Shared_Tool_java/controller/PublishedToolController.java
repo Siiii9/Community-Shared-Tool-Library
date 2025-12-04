@@ -2,9 +2,12 @@ package com.example.Community_Shared_Tool_java.controller;
 
 import com.example.Community_Shared_Tool_java.entity.PublishedTool;
 import com.example.Community_Shared_Tool_java.service.PublishedToolService;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.BindingResult;
+import org.springframework.validation.FieldError;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -21,13 +24,23 @@ public class PublishedToolController {
 
     // 发布新工具
     @PostMapping
-    public ResponseEntity<PublishedTool> publishTool(@RequestBody PublishedTool tool) {
+    public ResponseEntity<?> publishTool(@Valid @RequestBody PublishedTool tool, BindingResult bindingResult) {
         try {
+            // 🔹 修复：处理验证错误
+            if (bindingResult.hasErrors()) {
+                StringBuilder errorMsg = new StringBuilder();
+                for (FieldError error : bindingResult.getFieldErrors()) {
+                    errorMsg.append(error.getDefaultMessage()).append("\n");
+                }
+                return ResponseEntity.badRequest().body(errorMsg.toString());
+            }
+            
             tool.setStatus("available"); // 默认状态为可借用
             PublishedTool publishedTool = publishedToolService.publishTool(tool);
             return new ResponseEntity<>(publishedTool, HttpStatus.CREATED);
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("发布工具失败：" + e.getMessage());
         }
     }
 
@@ -62,8 +75,17 @@ public class PublishedToolController {
 
     // 更新工具信息
     @PutMapping("/{id}")
-    public ResponseEntity<PublishedTool> updateTool(@PathVariable Integer id, @RequestBody PublishedTool tool, @RequestHeader("X-User-Id") Integer userId) {
+    public ResponseEntity<?> updateTool(@PathVariable Integer id, @Valid @RequestBody PublishedTool tool, @RequestHeader("X-User-Id") Integer userId, BindingResult bindingResult) {
         try {
+            // 🔹 修复：处理验证错误
+            if (bindingResult.hasErrors()) {
+                StringBuilder errorMsg = new StringBuilder();
+                for (FieldError error : bindingResult.getFieldErrors()) {
+                    errorMsg.append(error.getDefaultMessage()).append("\n");
+                }
+                return ResponseEntity.badRequest().body(errorMsg.toString());
+            }
+            
             // 检查权限：用户只能编辑自己发布的工具
             Optional<PublishedTool> existingTool = publishedToolService.getToolById(id);
             if (existingTool.isEmpty()) {
@@ -71,7 +93,7 @@ public class PublishedToolController {
             }
 
             if (!existingTool.get().getOwnerId().equals(userId)) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body("您没有权限编辑此工具！");
             }
 
             // 确保ID一致
@@ -79,7 +101,8 @@ public class PublishedToolController {
             PublishedTool updatedTool = publishedToolService.updateTool(tool);
             return ResponseEntity.ok(updatedTool);
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("更新工具失败：" + e.getMessage());
         }
     }
 

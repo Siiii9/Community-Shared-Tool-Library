@@ -17,7 +17,6 @@
         </template>
       </el-input>
     </div>
-
     <!-- 搜索结果面板 -->
     <div
       v-if="showSearchResults && searchResults.length > 0"
@@ -41,13 +40,11 @@
         </div>
       </div>
     </div>
-
     <div class="map-container">
       <div id="amap-container" class="amap-real-map"></div>
     </div>
   </div>
 </template>
-
 <script setup lang="ts">
 declare global {
   interface Window {
@@ -55,30 +52,25 @@ declare global {
     toolDetailClick: (toolId: number) => void;
   }
 }
-
 import { ref, onMounted, onUnmounted } from 'vue'
 import AMapLoader from '@amap/amap-jsapi-loader'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { Search } from '@element-plus/icons-vue'
 import axios from 'axios'
-
 const router = useRouter()
 const searchKeyword = ref('')
 const showSearchResults = ref(false)
 const searchResults = ref<any[]>([])
 const currentlyHighlighted = ref<number | null>(null)
 const tools = ref<any[]>([])
-
 let map: any = null
 let myLocationMarker: any = null
 const toolMarkers = new Map<number, any>()
-
-const MY_POSITION = {
+const MY_POSITION = ref({
   lng: 116.238549,
   lat: 40.141686
-}
-
+})
 // 前端测试数据（后端不可用时降级使用）
 const MOCK_TOOLS = [
   { id: 1, name: '冲击钻', lng: 116.235718, lat: 40.141605, location: '工学A座-105工具间', status: 'available' },
@@ -92,11 +84,9 @@ const MOCK_TOOLS = [
   { id: 9, name: '万用表', lng: 116.240475, lat: 40.140618, location: '学生发展中心', status: 'available' },
   { id: 10, name: '万用表', lng: 116.239474, lat: 40.142992, location: '瑞幸咖啡店', status: 'available' },
 ]
-
 // 对同一地点的工具进行分组
 const groupToolsByLocation = (toolList: any[]) => {
   const locationGroups = new Map<string, any[]>()
-  
   toolList.forEach(tool => {
     // 使用经纬度作为唯一标识，四舍五入到小数点后5位
     const key = `${tool.lng.toFixed(5)},${tool.lat.toFixed(5)}`
@@ -105,23 +95,18 @@ const groupToolsByLocation = (toolList: any[]) => {
     }
     locationGroups.get(key)?.push(tool)
   })
-  
   return Array.from(locationGroups.values())
 }
-
 // 添加工具标记（聚合显示）
 const addToolMarkers = (toolList: any[]) => {
   // 清除旧标记
   toolMarkers.forEach(marker => marker.setMap(null))
   toolMarkers.clear()
-
   const locationGroups = groupToolsByLocation(toolList)
-  
   locationGroups.forEach(toolGroup => {
     const firstTool = toolGroup[0]
     const availableCount = toolGroup.filter((t: any) => t.status === 'available').length
     const totalCount = toolGroup.length
-    
     // 确定标记颜色
     let iconColor = '#52c41a' // 默认绿色（可用）
     if (availableCount === 0) {
@@ -129,7 +114,6 @@ const addToolMarkers = (toolList: any[]) => {
     } else if (availableCount < totalCount) {
       iconColor = '#ff7875' // 部分可用时显示红色
     }
-
     // 创建标记内容，显示工具数量
     const markerContent = `<div style="
       width: 30px;
@@ -145,7 +129,6 @@ const addToolMarkers = (toolList: any[]) => {
       font-weight: bold;
       font-size: 12px;
     ">${totalCount}</div>`
-
     const marker = new window.AMap.Marker({
       position: [firstTool.lng, firstTool.lat],
       title: `${firstTool.location} (${totalCount}个工具)`,
@@ -153,7 +136,6 @@ const addToolMarkers = (toolList: any[]) => {
       content: markerContent,
       offset: new window.AMap.Pixel(-15, -15)
     })
-
     // 创建信息窗口内容，显示该地点的所有工具列表
     let infoWindowContent = `
       <div style="padding:12px; max-width:250px;">
@@ -161,12 +143,10 @@ const addToolMarkers = (toolList: any[]) => {
         <p style="margin:0 0 10px 0; color:#666;">共${totalCount}个工具，${availableCount}个可用</p>
         <div style="max-height:200px; overflow-y:auto;">
     `
-    
     // 添加工具列表
     toolGroup.forEach((tool: any) => {
       const toolStatus = tool.status === 'available' ? '可用' : '已借出'
       const statusColor = tool.status === 'available' ? '#52c41a' : '#faad14'
-      
       infoWindowContent += `
         <div style="
           padding:8px;
@@ -183,7 +163,6 @@ const addToolMarkers = (toolList: any[]) => {
         </div>
       `
     })
-    
     infoWindowContent += `
         </div>
         <div style="margin-top:10px; font-size:12px; color:#999;">
@@ -191,27 +170,23 @@ const addToolMarkers = (toolList: any[]) => {
         </div>
       </div>
     `
-
     const infoWindow = new window.AMap.InfoWindow({
       content: infoWindowContent,
       offset: new window.AMap.Pixel(0, -10)
     })
-
     marker.on('click', () => {
       infoWindow.open(map, marker.getPosition())
     })
-
     // 为搜索功能存储每个工具的 marker
     toolGroup.forEach((tool: any) => {
       toolMarkers.set(tool.id, marker)
     })
   })
 }
-
 const addMyLocationMarker = () => {
   if (myLocationMarker) map.remove(myLocationMarker)
   myLocationMarker = new window.AMap.Marker({
-    position: [MY_POSITION.lng, MY_POSITION.lat],
+    position: [MY_POSITION.value.lng, MY_POSITION.value.lat],
     map: map,
     content: `<div style="
       width: 24px;
@@ -231,7 +206,6 @@ const addMyLocationMarker = () => {
     clickable: false
   })
 }
-
 // 获取工具列表
 const fetchTools = async () => {
   try {
@@ -241,8 +215,8 @@ const fetchTools = async () => {
       tools.value = response.data.map((tool: any) => ({
         id: tool.id,
         name: tool.toolName,
-        lng: tool.longitude || MY_POSITION.lng,
-        lat: tool.latitude || MY_POSITION.lat,
+        lng: tool.longitude || MY_POSITION.value.lng,
+        lat: tool.latitude || MY_POSITION.value.lat,
         location: tool.location,
         status: tool.status
       }))
@@ -256,47 +230,38 @@ const fetchTools = async () => {
     tools.value = MOCK_TOOLS
   }
 }
-
 const initMap = async () => {
   try {
     await AMapLoader.load({
       key: 'b89c154dcf2c17dcac9ca55afb3ed734',
       version: '2.0',
-      plugins: ['AMap.Marker', 'AMap.InfoWindow', 'AMap.Scale'],
+      plugins: ['AMap.Marker', 'AMap.InfoWindow', 'AMap.Scale', 'AMap.Geocoder'],
     })
-
     map = new window.AMap.Map('amap-container', {
       zoom: 17,
-      center: [MY_POSITION.lng, MY_POSITION.lat],
+      center: [MY_POSITION.value.lng, MY_POSITION.value.lat],
       viewMode: '3D',
       dragEnable: true,    // 允许拖拽
       zoomEnable: true,    // 允许缩放
       keyboardEnable: false,
     })
-
     map.addControl(new window.AMap.Scale({
       position: { bottom: '10px', left: '10px' }
     }))
-
     addMyLocationMarker()
     addToolMarkers(tools.value)
-
     window.toolDetailClick = (toolId: number) => {
       router.push({ name: 'ToolDetail', params: { id: toolId } })
     }
-
     ElMessage.success('地图加载完成')
-
     setTimeout(() => {
       createCustomControls()
     }, 500)
-
   } catch (error: any) {
     console.error('地图加载失败:', error)
     ElMessage.error('地图初始化失败')
   }
 }
-
 const createCustomControls = () => {
   const controlContainer = document.createElement('div')
   controlContainer.style.position = 'absolute'
@@ -306,7 +271,6 @@ const createCustomControls = () => {
   controlContainer.style.flexDirection = 'column'
   controlContainer.style.gap = '8px'
   controlContainer.style.zIndex = '1000'
-
   const locateBtn = document.createElement('div')
   locateBtn.innerHTML = `
     <div style="
@@ -327,12 +291,35 @@ const createCustomControls = () => {
       <span class="material-icons">my_location</span>
     </div>
   `
-  locateBtn.onclick = () => {
-    map.setCenter([MY_POSITION.lng, MY_POSITION.lat])
-    map.setZoom(17)
-    ElMessage.info('已定位到当前位置')
+  locateBtn.onclick = async () => {
+    try {
+      // 使用HTML5地理定位API
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const lng = position.coords.longitude
+            const lat = position.coords.latitude
+            MY_POSITION.value = { lng, lat }
+            map.setCenter([lng, lat])
+            map.setZoom(17)
+            // 更新我的位置标记
+            addMyLocationMarker()
+            ElMessage.info('已定位到当前位置')
+          },
+          (error) => {
+            console.error('获取位置失败:', error)
+            ElMessage.warning('无法获取当前位置，请手动定位')
+          },
+          { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+        )
+      } else {
+        ElMessage.warning('浏览器不支持地理定位')
+      }
+    } catch (error) {
+      console.error('定位失败:', error)
+      ElMessage.error('定位失败，请重试')
+    }
   }
-
   const zoomInBtn = document.createElement('div')
   zoomInBtn.innerHTML = `
     <div style="
@@ -355,7 +342,6 @@ const createCustomControls = () => {
     </div>
   `
   zoomInBtn.onclick = () => map.zoomIn()
-
   const zoomOutBtn = document.createElement('div')
   zoomOutBtn.innerHTML = `
     <div style="
@@ -378,17 +364,14 @@ const createCustomControls = () => {
     </div>
   `
   zoomOutBtn.onclick = () => map.zoomOut()
-
   controlContainer.appendChild(locateBtn)
   controlContainer.appendChild(zoomInBtn)
   controlContainer.appendChild(zoomOutBtn)
-
   const amapContainer = document.getElementById('amap-container')
   if (amapContainer) {
     amapContainer.appendChild(controlContainer)
   }
 }
-
 // 核心：搜索功能
 const performSearch = () => {
   const keyword = searchKeyword.value.trim()
@@ -396,21 +379,17 @@ const performSearch = () => {
     clearSearch()
     return
   }
-
   const matchedTools = tools.value.filter(tool =>
     tool.name.toLowerCase().includes(keyword.toLowerCase()) ||
     tool.location.toLowerCase().includes(keyword.toLowerCase())
   )
-
   if (matchedTools.length === 0) {
     ElMessage.warning('未找到匹配的工具')
     clearSearch()
     return
   }
-
   searchResults.value = matchedTools
   showSearchResults.value = true
-
   // 临时保存原始标记内容
   const originalContents = new Map<string, string>()
   const uniqueMarkers = new Set<any>()
@@ -419,31 +398,30 @@ const performSearch = () => {
     if (marker) {
       uniqueMarkers.add(marker)
       const pos = marker.getPosition()
-      const key = `${pos.lng.toFixed(5)},${pos.lat.toFixed(5)}`
+      // 🔹 修复：为 pos 添加类型断言
+      const position = pos as { lng: number; lat: number }
+      const key = `${position.lng.toFixed(5)},${position.lat.toFixed(5)}`
       if (!originalContents.has(key)) {
         originalContents.set(key, marker.getContent())
       }
     }
   })
-
   // 重新渲染所有标记（恢复默认状态）
   addToolMarkers(tools.value)
-
   // 高亮匹配的标记
   uniqueMarkers.forEach(marker => {
     const pos = marker.getPosition()
-    const key = `${pos.lng.toFixed(5)},${pos.lat.toFixed(5)}`
-    
+    // 🔹 修复：为 pos 添加类型断言
+    const position = pos as { lng: number; lat: number }
+    const key = `${position.lng.toFixed(5)},${position.lat.toFixed(5)}`
     // 找出该位置的所有工具
     const locationTools = tools.value.filter(t => 
       `${t.lng.toFixed(5)},${t.lat.toFixed(5)}` === key
     )
-    
     // 找出匹配的工具
     const matchedInLocation = locationTools.filter(t => 
       matchedTools.some(m => m.id === t.id)
     )
-    
     if (matchedInLocation.length > 0) {
       const availableMatched = matchedInLocation.filter(t => t.status === 'available').length
       const totalMatched = matchedInLocation.length
@@ -453,7 +431,6 @@ const performSearch = () => {
       } else if (availableMatched < totalMatched) {
         highlightColor = '#cf1322' // 深红色
       }
-
       marker.setContent(`<div style="
         width: 30px;
         height: 30px;
@@ -470,16 +447,13 @@ const performSearch = () => {
       ">${locationTools.length}</div>`)
     }
   })
-
   // 聚焦到匹配区域
   const markerArray = Array.from(uniqueMarkers)
   if (markerArray.length > 0) {
     map.setFitView(markerArray, false, [80, 80, 80, 80])
   }
-
   ElMessage.success(`找到 ${matchedTools.length} 个匹配结果`)
 }
-
 // 清除搜索
 const clearSearch = () => {
   searchKeyword.value = ''
@@ -489,15 +463,12 @@ const clearSearch = () => {
   // 恢复默认标记
   addToolMarkers(tools.value)
 }
-
 // 🔹 修复：鼠标悬停高亮
 const highlightResult = (toolId: number) => {
   currentlyHighlighted.value = toolId
-  
   // 获取该工具的 marker
   const marker = toolMarkers.get(toolId)
   if (!marker) return
-  
   // 创建高亮内容（深绿色）
   const highlightedContent = `<div style="
     width: 30px;
@@ -513,29 +484,24 @@ const highlightResult = (toolId: number) => {
     font-weight: bold;
     font-size: 12px;
   ">${getToolLocationCount(toolId)}</div>`
-  
   marker.setContent(highlightedContent)
 }
-
 // 🔹 修复：鼠标移开恢复
 const unhighlightResult = () => {
   currentlyHighlighted.value = null
   // 恢复所有标记为默认状态
   addToolMarkers(tools.value)
 }
-
 // 辅助函数：获取某个位置的工具总数
 const getToolLocationCount = (toolId: number) => {
   const tool = tools.value.find(t => t.id === toolId)
   if (!tool) return 1
-  
   // 统计同一位置的工具数量
   const locationKey = `${tool.lng.toFixed(5)},${tool.lat.toFixed(5)}`
   return tools.value.filter(t => 
     `${t.lng.toFixed(5)},${t.lat.toFixed(5)}` === locationKey
   ).length
 }
-
 // 点击结果定位
 const zoomToResult = (result: any) => {
   map.setCenter([result.lng, result.lat])
@@ -543,17 +509,14 @@ const zoomToResult = (result: any) => {
   showSearchResults.value = false
   currentlyHighlighted.value = result.id
 }
-
 onMounted(async () => {
   await fetchTools()
   initMap()
 })
-
 onUnmounted(() => {
   if (map) map.destroy()
 })
 </script>
-
 <style scoped>
 .tool-map {
   padding: 16px;
@@ -561,7 +524,6 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
 }
-
 .search-bar {
   display: flex;
   gap: 12px;
@@ -570,18 +532,15 @@ onUnmounted(() => {
   margin-bottom: 16px;
   flex-wrap: wrap;
 }
-
 .search-input {
   width: 100%;
   max-width: 600px;
 }
-
 :deep(.el-input-group__append .el-button) {
   height: 100%;
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
 }
-
 .search-results-panel {
   position: absolute;
   top: 60px;
@@ -598,7 +557,6 @@ onUnmounted(() => {
   overflow-y: auto;
   padding: 12px;
 }
-
 .result-item {
   display: flex;
   justify-content: space-between;
@@ -608,33 +566,27 @@ onUnmounted(() => {
   cursor: pointer;
   transition: background 0.2s;
 }
-
 .result-item:hover {
   background: #f5f7fa;
 }
-
 .result-info {
   display: flex;
   align-items: center;
   gap: 8px;
   flex: 1;
 }
-
 .result-index {
   font-weight: bold;
   color: #999;
 }
-
 .result-name {
   font-weight: bold;
   color: #333;
 }
-
 .result-location {
   color: #777;
   font-size: 12px;
 }
-
 .result-status {
   padding: 4px 8px;
   border-radius: 4px;
@@ -642,15 +594,12 @@ onUnmounted(() => {
   font-weight: bold;
   color: white;
 }
-
 .result-status.available {
   background: #52c41a;
 }
-
 .result-status.borrowed {
   background: #faad14;
 }
-
 .map-container {
   flex: 1;
   min-height: 0;
@@ -659,7 +608,6 @@ onUnmounted(() => {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
   position: relative;
 }
-
 #amap-container {
   width: 100%;
   height: 100%;

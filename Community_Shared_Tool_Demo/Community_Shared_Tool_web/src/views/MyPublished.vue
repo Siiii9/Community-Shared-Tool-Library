@@ -1,3 +1,4 @@
+<!-- src/views/MyPublished.vue -->
 <template>
   <div class="my-published">
     <div class="operation-buttons">
@@ -6,11 +7,9 @@
       <!-- 🔹 修改：按钮文字为黑色，无悬停变色 -->
       <button @click="openAddToolDialog" class="add-tool-btn">发布新工具</button>
     </div>
-
     <div class="filter-form">
       <label for="toolName">工具名称</label>
       <input v-model="filter.toolName" id="toolName" placeholder="输入工具名称" />
-
       <label for="toolStatus">工具状态</label>
       <select v-model="filter.status" id="toolStatus">
         <option value="">全部状态</option>
@@ -19,11 +18,9 @@
         <option value="pending">申请中</option>
         <option value="maintenance">维护中</option>
       </select>
-
       <button @click="applyFilter">筛选</button>
       <button @click="resetFilter">重置</button>
     </div>
-
     <table class="data-table">
       <thead>
         <tr>
@@ -91,7 +88,6 @@
         </tr>
       </tbody>
     </table>
-
     <div class="pagination">
       <button @click="changePage(1)" :disabled="pagination.currentPage === 1">首页</button>
       <button @click="changePage(pagination.currentPage - 1)" :disabled="pagination.currentPage === 1">上一页</button>
@@ -99,17 +95,30 @@
       <button @click="changePage(pagination.currentPage + 1)" :disabled="pagination.currentPage === maxPage">下一页</button>
       <button @click="changePage(maxPage)" :disabled="pagination.currentPage === maxPage">尾页</button>
     </div>
-
     <!-- 发布新工具对话框 -->
     <div v-if="showAddToolDialog" class="add-tool-dialog-overlay">
       <div class="add-tool-dialog">
         <h3>{{ newTool.id ? '编辑工具' : '发布新工具' }}</h3>
+        <div class="map-preview">
+          <div id="publish-map-container"></div>
+          <button @click="getCurrentLocation" class="locate-btn">
+            <span class="material-icons">my_location</span> 定位到我的位置
+          </button>
+        </div>
         <form @submit.prevent="saveTool">
           <div class="form-group">
             <label for="newToolName">工具名称：</label>
             <input 
               id="newToolName" 
               v-model="newTool.toolName" 
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label for="newToolType">工具类型：</label>
+            <input 
+              id="newToolType" 
+              v-model="newTool.toolType" 
               required
             />
           </div>
@@ -128,6 +137,10 @@
               v-model="newTool.location" 
               required
             />
+            <div class="location-coords">
+              <span>经度: {{ newTool.longitude !== null && newTool.longitude !== undefined ? newTool.longitude.toFixed(5) : '—' }}</span>
+              <span>纬度: {{ newTool.latitude !== null && newTool.latitude !== undefined ? newTool.latitude.toFixed(5) : '—' }}</span>
+            </div>
           </div>
           <div class="form-group">
             <label for="newBorrowDaysLimit">最大借用天数：</label>
@@ -164,8 +177,9 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import axios from 'axios'
+import AMapLoader from '@amap/amap-jsapi-loader'
 
 // 状态映射
 const statusText = {
@@ -190,36 +204,28 @@ const pagination = ref({ currentPage: 1, pageSize: 5 })
 const showAddToolDialog = ref(false)
 const newTool = ref({
   toolName: '',
+  toolType: '',
   description: '',
   location: '',
   status: 'available',
   borrowDaysLimit: 7,
   imageUrl: '',
-  id: null // 用于区分新增和编辑
+  id: null, // 用于区分新增和编辑
+  longitude: 116.238549,
+  latitude: 40.141686
 })
 
-const filteredData = computed(() => {
-  return rawData.value.filter(item => {
-    const nameMatch = item.toolName.includes(filter.value.toolName)
-    const statusMatch = filter.value.status ? item.status === filter.value.status : true
-    return nameMatch && statusMatch
-  })
-})
+const publishMap = ref(null)
+const publishMarker = ref(null)
+const MY_POSITION = {
+  lng: 116.238549,
+  lat: 40.141686
+}
 
-const sortedData = computed(() => {
-  if (!sort.value.prop) return filteredData.value
-  return [...filteredData.value].sort((a, b) => {
-    const order = sort.value.order === 'ascending' ? 1 : -1
-    return a[sort.value.prop] > b[sort.value.prop] ? order : -order
-  })
-})
-
-const paginatedData = computed(() => {
-  const start = (pagination.value.currentPage - 1) * pagination.value.pageSize
-  return sortedData.value.slice(start, start + pagination.value.pageSize)
-})
-
-const maxPage = computed(() => Math.ceil(filteredData.value.length / pagination.value.pageSize))
+const filteredData = ref([])
+const sortedData = ref([])
+const paginatedData = ref([])
+const maxPage = ref(1)
 
 const formatDate = (isoStr) => {
   if (!isoStr) return '—'
@@ -229,6 +235,336 @@ const formatDate = (isoStr) => {
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit'
+  })
+}
+
+// 计算属性
+const computeFilteredData = () => {
+  filteredData.value = rawData.value.filter(item => {
+    const nameMatch = item.toolName.includes(filter.value.toolName)
+    const statusMatch = filter.value.status ? item.status === filter.value.status : true
+    return nameMatch && statusMatch
+  })
+  computeSortedData()
+}
+
+const computeSortedData = () => {
+  if (!sort.value.prop) {
+    sortedData.value = [...filteredData.value]
+  } else {
+    sortedData.value = [...filteredData.value].sort((a, b) => {
+      const order = sort.value.order === 'ascending' ? 1 : -1
+      return a[sort.value.prop] > b[sort.value.prop] ? order : -order
+    })
+  }
+  computePaginatedData()
+}
+
+const computePaginatedData = () => {
+  const start = (pagination.value.currentPage - 1) * pagination.value.pageSize
+  paginatedData.value = sortedData.value.slice(start, start + pagination.value.pageSize)
+  maxPage.value = Math.ceil(filteredData.value.length / pagination.value.pageSize)
+}
+
+const refreshData = async () => {
+  try {
+    // 获取发布的工具
+    const response = await axios.get(`/api/published-tools/owner/${currentUserId}`)
+    rawData.value = response.data
+    computeFilteredData()
+    // 获取借用申请和等待归还确认记录
+    await fetchPendingApplications()
+    await fetchWaitingReturnConfirmations()
+  } catch (error) {
+    console.error('获取发布工具列表失败：', error)
+    alert('获取发布工具列表失败，请重试')
+  }
+}
+
+const applyFilter = () => {
+  pagination.value.currentPage = 1
+  computeFilteredData()
+}
+
+const resetFilter = () => {
+  filter.value = { toolName: '', status: '' }
+  pagination.value.currentPage = 1
+  computeFilteredData()
+}
+
+const sortData = (prop) => {
+  if (sort.value.prop === prop) {
+    sort.value.order = sort.value.order === 'ascending' ? 'descending' : 'ascending'
+  } else {
+    sort.value.prop = prop
+    sort.value.order = 'ascending'
+  }
+  computeSortedData()
+}
+
+const exportPublishedList = () => {
+  const csvContent = [
+    '发布时间,工具名称,位置,状态',
+    ...sortedData.value.map(item =>
+      `"${formatDate(item.publishTime)}","${item.toolName}","${item.location}","${statusText[item.status]}"`
+    )
+  ].join('\n')
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = `my_published_tools_${new Date().toISOString().slice(0, 10)}.csv`
+  link.click()
+}
+
+// 修复：函数名改为 openAddToolDialog
+const openAddToolDialog = () => {
+  newTool.value = {
+    toolName: '',
+    toolType: '',
+    description: '',
+    location: '',
+    status: 'available',
+    borrowDaysLimit: 7,
+    imageUrl: '',
+    id: null,
+    longitude: MY_POSITION.lng,
+    latitude: MY_POSITION.lat
+  }
+  showAddToolDialog.value = true
+  
+  // 延迟初始化地图
+  setTimeout(() => {
+    initPublishMap()
+  }, 100)
+}
+
+// 隐藏发布新工具对话框
+const cancelAddTool = () => {
+  showAddToolDialog.value = false
+}
+
+// 处理图片上传
+const handleImageUpload = (event) => {
+  const file = event.target.files[0]
+  if (file) {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      newTool.value.imageUrl = e.target.result
+    }
+    reader.readAsDataURL(file)
+  }
+}
+
+// 保存工具（新增或编辑）
+const saveTool = async () => {
+  try {
+    // 表单验证
+    if (!newTool.value.toolName) {
+      alert('请输入工具名称！');
+      return;
+    }
+    if (!newTool.value.toolType) {
+      alert('请选择工具类型！');
+      return;
+    }
+    if (!newTool.value.location) {
+      alert('请输入工具位置！');
+      return;
+    }
+    if (!newTool.value.borrowDaysLimit || newTool.value.borrowDaysLimit <= 0) {
+      alert('请输入有效的最大借用天数！');
+      return;
+    }
+    
+    newTool.value.ownerId = currentUserId
+    let response
+    
+    // 创建一个干净的工具对象，只包含后端需要的字段
+    const toolData = {
+      toolName: newTool.value.toolName,
+      toolType: newTool.value.toolType,
+      description: newTool.value.description,
+      location: newTool.value.location,
+      status: newTool.value.status,
+      borrowDaysLimit: parseInt(newTool.value.borrowDaysLimit),
+      imageUrl: newTool.value.imageUrl,
+      ownerId: currentUserId,
+      longitude: newTool.value.longitude,
+      latitude: newTool.value.latitude
+    }
+    
+    if (newTool.value.id) {
+      // 编辑
+      toolData.id = newTool.value.id
+      response = await axios.put(`/api/published-tools/${newTool.value.id}`, toolData)
+      const index = rawData.value.findIndex(item => item.id === newTool.value.id)
+      if (index !== -1) {
+        rawData.value[index] = response.data
+      }
+      alert('✅ 工具编辑成功！')
+    } else {
+      // 新增
+      response = await axios.post('/api/published-tools', toolData)
+      rawData.value.push(response.data)
+      alert('✅ 新工具发布成功！')
+    }
+    
+    showAddToolDialog.value = false
+    computeFilteredData()
+  } catch (error) {
+    console.error('保存工具失败：', error)
+    if (error.response?.data?.message) {
+      alert('保存失败：' + error.response.data.message)
+    } else {
+      alert('保存工具失败，请重试')
+    }
+  }
+}
+
+// 编辑工具
+const editTool = (tool) => {
+  newTool.value = {
+    id: tool.id,
+    toolName: tool.toolName,
+    toolType: tool.toolType,
+    description: tool.description,
+    location: tool.location,
+    status: tool.status,
+    borrowDaysLimit: tool.borrowDaysLimit,
+    imageUrl: tool.imageUrl,
+    longitude: tool.longitude,
+    latitude: tool.latitude
+  }
+  showAddToolDialog.value = true
+  
+  // 延迟初始化地图
+  setTimeout(() => {
+    initPublishMap()
+  }, 100)
+}
+
+// 删除工具
+const deleteTool = async (id) => {
+  if (confirm('确定删除该工具？')) {
+    try {
+      await axios.delete(`/api/published-tools/${id}`, {
+        headers: {
+          'X-User-Id': currentUserId
+        }
+      })
+      rawData.value = rawData.value.filter(item => item.id !== id)
+      computeFilteredData()
+      alert('删除成功！')
+    } catch (error) {
+      console.error('删除工具失败：', error)
+      alert('删除工具失败，请重试')
+    }
+  }
+}
+
+const changePage = (page) => {
+  if (page >= 1 && page <= maxPage.value) {
+    pagination.value.currentPage = page
+    computePaginatedData()
+  }
+}
+
+// 初始化发布地图
+const initPublishMap = async () => {
+  try {
+    await AMapLoader.load({
+      key: 'b89c154dcf2c17dcac9ca55afb3ed734',
+      version: '2.0',
+      plugins: ['AMap.Marker', 'AMap.Geolocation', 'AMap.Geocoder'],
+    })
+    
+    const mapContainer = document.getElementById('publish-map-container')
+    if (!mapContainer) return
+    
+    publishMap.value = new window.AMap.Map('publish-map-container', {
+      zoom: 17,
+      center: [newTool.value.longitude, newTool.value.latitude],
+      viewMode: '3D',
+      dragEnable: true,
+      zoomEnable: true,
+    })
+    
+    // 添加位置标记
+    publishMarker.value = new window.AMap.Marker({
+      position: [newTool.value.longitude, newTool.value.latitude],
+      map: publishMap.value,
+      content: `<div style="
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: #52c41a;
+        border: 2px solid white;
+        box-shadow: 0 0 0 4px rgba(82, 196, 26, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 12px;
+      ">📍</div>`,
+      offset: new window.AMap.Pixel(-12, -12),
+      draggable: true // 允许拖拽
+    })
+    
+    // 监听标记拖拽事件
+    publishMarker.value.on('dragend', (e) => {
+      const lng = e.lnglat.lng
+      const lat = e.lnglat.lat
+      newTool.value.longitude = lng
+      newTool.value.latitude = lat
+      reverseGeocode(lng, lat)
+    })
+  } catch (error) {
+    console.error('发布地图初始化失败:', error)
+  }
+}
+
+// 获取当前位置
+const getCurrentLocation = () => {
+  if (!publishMap.value) return
+  
+  // 使用HTML5地理定位API
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords
+        newTool.value.latitude = latitude
+        newTool.value.longitude = longitude
+        
+        // 移动地图和标记
+        publishMap.value.setCenter([longitude, latitude])
+        publishMarker.value.setPosition([longitude, latitude])
+        
+        reverseGeocode(longitude, latitude)
+      },
+      (error) => {
+        console.error('获取位置失败:', error)
+        alert('获取位置失败，请手动选择位置')
+      },
+      { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+    )
+  } else {
+    alert('浏览器不支持地理定位')
+  }
+}
+
+// 逆地理编码
+const reverseGeocode = (lng, lat) => {
+  // 逆地理编码，将坐标转为地址
+  const geocoder = new window.AMap.Geocoder({
+    radius: 1000,
+    extensions: 'all'
+  })
+  
+  geocoder.getAddress([lng, lat], (status, result) => {
+    if (status === 'complete' && result.regeocode) {
+      const address = result.regeocode.formattedAddress
+      newTool.value.location = address
+    }
   })
 }
 
@@ -277,7 +613,6 @@ const fetchWaitingReturnConfirmations = async () => {
   try {
     const response = await axios.get(`/api/borrow/my-applications/${currentUserId}`)
     const result = response.data
-    
     // 处理后端返回的新响应格式
     const applications = result.success ? result.data : []
     
@@ -317,8 +652,8 @@ const fetchWaitingReturnConfirmations = async () => {
 const approveApplication = async (applicationId, toolId) => {
   try {
     const response = await axios.post(`/api/borrow/approve/${applicationId}`)
-    
     const result = response.data
+    
     // 处理可能的不同响应格式
     if (result.success === false) {
       throw new Error(result.message || '同意借用申请失败')
@@ -332,7 +667,6 @@ const approveApplication = async (applicationId, toolId) => {
     
     // 重新获取借用申请
     await fetchPendingApplications()
-    
     alert('同意借用申请成功')
   } catch (error) {
     console.error('同意借用申请出错:', error)
@@ -348,8 +682,8 @@ const rejectApplication = async (applicationId, toolId) => {
   
   try {
     const response = await axios.post(`/api/borrow/reject/${applicationId}`, { rejectReason })
-    
     const result = response.data
+    
     if (!result.success) {
       throw new Error(result.message || '拒绝借用申请失败')
     }
@@ -362,7 +696,6 @@ const rejectApplication = async (applicationId, toolId) => {
     
     // 重新获取借用申请
     await fetchPendingApplications()
-    
     alert('拒绝借用申请成功')
   } catch (error) {
     console.error('拒绝借用申请出错:', error)
@@ -376,8 +709,8 @@ const confirmReturn = async (applicationId, toolId) => {
   
   try {
     const response = await axios.post(`/api/borrow/confirm-return/${applicationId}`)
-    
     const result = response.data
+    
     if (!result.success) {
       throw new Error(result.message || '确认归还失败')
     }
@@ -390,7 +723,6 @@ const confirmReturn = async (applicationId, toolId) => {
     
     // 重新获取等待归还确认记录
     await fetchWaitingReturnConfirmations()
-    
     alert('确认归还成功')
   } catch (error) {
     console.error('确认归还出错:', error)
@@ -404,15 +736,14 @@ const rejectReturn = async (applicationId, toolId) => {
   
   try {
     const response = await axios.post(`/api/borrow/reject-return/${applicationId}`)
-    
     const result = response.data
+    
     if (!result.success) {
       throw new Error(result.message || '拒绝归还失败')
     }
     
     // 重新获取等待归还确认记录
     await fetchWaitingReturnConfirmations()
-    
     alert('拒绝归还成功')
   } catch (error) {
     console.error('拒绝归还出错:', error)
@@ -420,169 +751,14 @@ const rejectReturn = async (applicationId, toolId) => {
   }
 }
 
-// 刷新数据
-const refreshData = async () => {
-  try {
-    // 获取发布的工具
-    const response = await axios.get(`/api/published-tools/owner/${currentUserId}`)
-    rawData.value = response.data
-    
-    // 获取借用申请和等待归还确认记录
-    await fetchPendingApplications()
-    await fetchWaitingReturnConfirmations()
-  } catch (error) {
-    console.error('获取发布工具列表失败：', error)
-    alert('获取发布工具列表失败，请重试')
-  }
-}
-
-const applyFilter = () => {
-  pagination.value.currentPage = 1
-}
-
-const resetFilter = () => {
-  filter.value = { toolName: '', status: '' }
-  pagination.value.currentPage = 1
-}
-
-const sortData = (prop) => {
-  if (sort.value.prop === prop) {
-    sort.value.order = sort.value.order === 'ascending' ? 'descending' : 'ascending'
-  } else {
-    sort.value.prop = prop
-    sort.value.order = 'ascending'
-  }
-}
-
-const exportPublishedList = () => {
-  const csvContent = [
-    '发布时间,工具名称,位置,状态',
-    ...sortedData.value.map(item =>
-      `"${formatDate(item.publishTime)}","${item.toolName}","${item.location}","${statusText[item.status]}"`
-    )
-  ].join('\n')
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-  const link = document.createElement('a')
-  link.href = URL.createObjectURL(blob)
-  link.download = `my_published_tools_${new Date().toISOString().slice(0, 10)}.csv`
-  link.click()
-}
-
-// 🔹 修复：函数名改为 openAddToolDialog
-const openAddToolDialog = () => {
-  newTool.value = {
-    toolName: '',
-    description: '',
-    location: '',
-    status: 'available',
-    borrowDaysLimit: 7,
-    imageUrl: '',
-    id: null
-  }
-  showAddToolDialog.value = true
-}
-
-// 隐藏发布新工具对话框
-const cancelAddTool = () => {
-  showAddToolDialog.value = false
-}
-
-// 处理图片上传
-const handleImageUpload = (event) => {
-  const file = event.target.files[0]
-  if (file) {
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      newTool.value.imageUrl = e.target.result
-    }
-    reader.readAsDataURL(file)
-  }
-}
-
-// 保存工具（新增或编辑）
-const saveTool = async () => {
-  try {
-    newTool.value.ownerId = currentUserId
-    let response
-    
-    // 🔹 修复：创建一个干净的工具对象，只包含后端需要的字段
-    const toolData = {
-      toolName: newTool.value.toolName,
-      description: newTool.value.description,
-      location: newTool.value.location,
-      status: newTool.value.status,
-      borrowDaysLimit: newTool.value.borrowDaysLimit,
-      imageUrl: newTool.value.imageUrl,
-      ownerId: currentUserId
-    }
-    
-    if (newTool.value.id) {
-      // 编辑
-      toolData.id = newTool.value.id
-      response = await axios.put(`/api/published-tools/${newTool.value.id}`, toolData)
-      const index = rawData.value.findIndex(item => item.id === newTool.value.id)
-      if (index !== -1) {
-        rawData.value[index] = response.data
-      }
-      alert('✅ 工具编辑成功！')
-    } else {
-      // 新增
-      response = await axios.post('/api/published-tools', toolData)
-      rawData.value.push(response.data)
-      alert('✅ 新工具发布成功！')
-    }
-    showAddToolDialog.value = false
-  } catch (error) {
-    console.error('保存工具失败：', error)
-    if (error.response?.data?.message) {
-      alert('保存失败：' + error.response.data.message)
-    } else {
-      alert('保存工具失败，请重试')
-    }
-  }
-}
-
-// 编辑工具
-const editTool = (tool) => {
-  // 🔹 修复：不包含 toolType 字段
-  newTool.value = {
-    id: tool.id,
-    toolName: tool.toolName,
-    description: tool.description,
-    location: tool.location,
-    status: tool.status,
-    borrowDaysLimit: tool.borrowDaysLimit,
-    imageUrl: tool.imageUrl
-  }
-  showAddToolDialog.value = true
-}
-
-// 删除工具
-const deleteTool = async (id) => {
-  if (confirm('确定删除该工具？')) {
-    try {
-      await axios.delete(`/api/published-tools/${id}`, {
-        headers: {
-          'X-User-Id': currentUserId
-        }
-      })
-      rawData.value = rawData.value.filter(item => item.id !== id)
-      alert('删除成功！')
-    } catch (error) {
-      console.error('删除工具失败：', error)
-      alert('删除工具失败，请重试')
-    }
-  }
-}
-
-const changePage = (page) => {
-  if (page >= 1 && page <= maxPage.value) {
-    pagination.value.currentPage = page
-  }
-}
-
 onMounted(() => {
   refreshData()
+})
+
+onUnmounted(() => {
+  if (publishMap.value) {
+    publishMap.value.destroy()
+  }
 })
 </script>
 
@@ -810,6 +986,44 @@ onMounted(() => {
 .pagination button {
   margin: 0 5px;
   padding: 6px 12px;
+}
+
+.map-preview {
+  height: 300px;
+  margin-bottom: 20px;
+  position: relative;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+#publish-map-container {
+  width: 100%;
+  height: 100%;
+}
+
+.locate-btn {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  z-index: 10;
+  padding: 6px 12px;
+  background: white;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.location-coords {
+  display: flex;
+  gap: 15px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: #666;
 }
 
 /* 借用提示样式 */
