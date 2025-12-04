@@ -21,9 +21,6 @@ public class BorrowInfo {
     @Column(name = "tool_name", nullable = false, length = 100)
     private String toolName;
     
-    @Column(name = "tool_type", nullable = false, length = 50)
-    private String toolType;
-    
     @Column(name = "borrower_id", nullable = false)
     private Integer borrowerId;
     
@@ -73,14 +70,6 @@ public class BorrowInfo {
     
     public void setToolName(String toolName) {
         this.toolName = toolName;
-    }
-    
-    public String getToolType() {
-        return toolType;
-    }
-    
-    public void setToolType(String toolType) {
-        this.toolType = toolType;
     }
     
     public Integer getBorrowerId() {

@@ -4,7 +4,7 @@ import { ref } from 'vue'
 
 export const useUserStore = defineStore('user', () => {
   const token = ref(localStorage.getItem('userToken') || '')
-  const userId = ref(localStorage.getItem('userId') || '')
+  const userId = ref(localStorage.getItem('userId') || '1')
   const username = ref(localStorage.getItem('username') || '')
   const isAdmin = ref(localStorage.getItem('isAdmin') === 'true')
 

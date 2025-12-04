@@ -123,6 +123,23 @@ public class BorrowInfoController {
         }
     }
     
+    // 应急修复：强制清除工具的借用状态（用于解决借用者信息丢失的情况）
+    @DeleteMapping("/force-clear/{toolId}")
+    public ResponseEntity<Map<String, Object>> forceClearToolBorrowStatus(@PathVariable Integer toolId) {
+        try {
+            borrowInfoService.forceClearToolBorrowStatus(toolId);
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "工具借用状态已成功清除，工具现在可以再次借用");
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+        }
+    }
+    
     // 拒绝归还工具（所有者拒绝）
     @PatchMapping("/{id}/reject-return")
     public ResponseEntity<Map<String, Object>> rejectReturn(@PathVariable Integer id) {

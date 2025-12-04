@@ -68,21 +68,21 @@ let map: any = null
 let myLocationMarker: any = null
 const toolMarkers = new Map<number, any>()
 const MY_POSITION = ref({
-  lng: 116.238549,
-  lat: 40.141686
+  lng: 116.238489,
+  lat: 40.141716
 })
 // 前端测试数据（后端不可用时降级使用）
 const MOCK_TOOLS = [
-  { id: 1, name: '冲击钻', lng: 116.235718, lat: 40.141605, location: '工学A座-105工具间', status: 'available' },
-  { id: 2, name: '万用表', lng: 116.238418, lat: 40.142330, location: '信息C座-301电子室', status: 'borrowed' },
-  { id: 3, name: '电焊机', lng: 116.237475, lat: 40.141751, location: '信息A座-202车间', status: 'available' },
-  { id: 4, name: '手电钻', lng: 116.236858, lat: 40.141954, location: '工学B座-101实验室', status: 'available' },
-  { id: 5, name: '水平仪', lng: 116.238675, lat: 40.140950, location: '图书馆-工具角', status: 'borrowed' },
-  { id: 6, name: '冲击钻', lng: 116.235878, lat: 40.141123, location: '文理楼B', status: 'available' },
-  { id: 7, name: '万用表', lng: 116.235368, lat: 40.140513, location: '文理楼C', status: 'available' },
-  { id: 8, name: '水平仪', lng: 116.236813, lat: 40.140505, location: '文理楼A', status: 'available' },
-  { id: 9, name: '万用表', lng: 116.240475, lat: 40.140618, location: '学生发展中心', status: 'available' },
-  { id: 10, name: '万用表', lng: 116.239474, lat: 40.142992, location: '瑞幸咖啡店', status: 'available' },
+  { id: 1, name: '冲击钻', lng: 116.235718, lat: 40.141605, location: '工学A座-105工具间', status: 'available', imageUrl: '/uploads/images/chongjizuan.png' },
+  { id: 2, name: '万用表', lng: 116.238418, lat: 40.142330, location: '信息C座-301电子室', status: 'available', imageUrl: '/uploads/images/wanyongbiao.png' },
+  { id: 3, name: '电焊机', lng: 116.237475, lat: 40.141751, location: '信息A座-202车间', status: 'available', imageUrl: '/uploads/images/dianhan.png' },
+  { id: 4, name: '手电钻', lng: 116.236858, lat: 40.141954, location: '工学B座-101实验室', status: 'available', imageUrl: '/uploads/images/shoudianzuan.png' },
+  { id: 5, name: '水平仪', lng: 116.238675, lat: 40.140950, location: '图书馆-工具角', status: 'borrowed', imageUrl: '/uploads/images/shuiping.png' },
+  { id: 6, name: '冲击钻', lng: 116.235878, lat: 40.141123, location: '文理楼B', status: 'available', imageUrl: '/uploads/images/chongjizuan.png' },
+  { id: 7, name: '万用表', lng: 116.235368, lat: 40.140513, location: '文理楼C', status: 'borrowed', imageUrl: '/uploads/images/wanyongbiao.png' },
+  { id: 8, name: '水平仪', lng: 116.236813, lat: 40.140505, location: '文理楼A', status: 'available', imageUrl: '/uploads/images/shuiping.png' },
+  { id: 9, name: '万用表', lng: 116.240475, lat: 40.140618, location: '学生发展中心', status: 'available', imageUrl: '/uploads/images/wanyongbiao.png' },
+  { id: 10, name: '万用表', lng: 116.239474, lat: 40.142992, location: '瑞幸咖啡店', status: 'available', imageUrl: '/uploads/images/wanyongbiao.png' },
 ]
 // 对同一地点的工具进行分组
 const groupToolsByLocation = (toolList: any[]) => {
@@ -189,19 +189,10 @@ const addMyLocationMarker = () => {
     position: [MY_POSITION.value.lng, MY_POSITION.value.lat],
     map: map,
     content: `<div style="
-      width: 24px;
-      height: 24px;
-      border-radius: 50%;
-      background: #1890ff;
-      border: 2px solid white;
-      box-shadow: 0 0 0 4px rgba(24, 144, 255, 0.3);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: white;
-      font-size: 12px;
+      font-size: 28px;
+      line-height: 1;
     ">📍</div>`,
-    offset: new window.AMap.Pixel(-12, -12),
+    offset: new window.AMap.Pixel(-14, -14),
     title: '我的位置',
     clickable: false
   })
@@ -209,25 +200,33 @@ const addMyLocationMarker = () => {
 // 获取工具列表
 const fetchTools = async () => {
   try {
+    // 🔹 修复：始终包含原来的10个模拟工具点
+    const mergedTools = [...MOCK_TOOLS]
+    
     // 尝试从后端获取数据
     const response = await axios.get('/api/published-tools/search')
-    if (response.data && response.data.length > 0) {
-      tools.value = response.data.map((tool: any) => ({
+    // 修复：处理后端返回的响应格式 {success: true, data: [...], message: ""}
+    const backendData = response.data.success ? response.data.data : response.data
+    if (backendData && backendData.length > 0) {
+      // 将后端数据转换为地图需要的格式，并添加到工具列表
+      const backendTools = backendData.map((tool: any) => ({
         id: tool.id,
         name: tool.toolName,
         lng: tool.longitude || MY_POSITION.value.lng,
         lat: tool.latitude || MY_POSITION.value.lat,
         location: tool.location,
-        status: tool.status
+        status: tool.status,
+        imageUrl: tool.imageUrl
       }))
-    } else {
-      // 后端返回空数据，使用测试数据
-      tools.value = MOCK_TOOLS
+      mergedTools.push(...backendTools)
     }
+    
+    // 🔹 修复：过滤掉下架的工具（状态为maintenance）
+    tools.value = mergedTools.filter(tool => tool.status !== 'maintenance')
   } catch (error) {
-    // 后端请求失败，使用测试数据
+    // 后端请求失败，只使用测试数据
     console.warn('后端不可用，使用前端测试数据:', error)
-    tools.value = MOCK_TOOLS
+    tools.value = [...MOCK_TOOLS].filter(tool => tool.status !== 'maintenance')
   }
 }
 const initMap = async () => {
@@ -293,31 +292,18 @@ const createCustomControls = () => {
   `
   locateBtn.onclick = async () => {
     try {
-      // 使用HTML5地理定位API
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            const lng = position.coords.longitude
-            const lat = position.coords.latitude
-            MY_POSITION.value = { lng, lat }
-            map.setCenter([lng, lat])
-            map.setZoom(17)
-            // 更新我的位置标记
-            addMyLocationMarker()
-            ElMessage.info('已定位到当前位置')
-          },
-          (error) => {
-            console.error('获取位置失败:', error)
-            ElMessage.warning('无法获取当前位置，请手动定位')
-          },
-          { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
-        )
-      } else {
-        ElMessage.warning('浏览器不支持地理定位')
-      }
+      // 使用固定位置坐标
+      const lng = 116.238489
+      const lat = 40.141716
+      MY_POSITION.value = { lng, lat }
+      map.setCenter([lng, lat])
+      map.setZoom(17)
+      // 更新我的位置标记
+      addMyLocationMarker()
+      ElMessage.info('已定位到我的位置')
     } catch (error) {
-      console.error('定位失败:', error)
-      ElMessage.error('定位失败，请重试')
+      console.error('定位发生错误:', error)
+      ElMessage.error('定位发生错误')
     }
   }
   const zoomInBtn = document.createElement('div')
@@ -390,26 +376,33 @@ const performSearch = () => {
   }
   searchResults.value = matchedTools
   showSearchResults.value = true
-  // 临时保存原始标记内容
-  const originalContents = new Map<string, string>()
-  const uniqueMarkers = new Set<any>()
+  
+  // 重新渲染所有标记（恢复默认状态）
+  addToolMarkers(tools.value)
+  
+  // 根据坐标获取匹配的标记并高亮
+  const matchedCoordinates = new Set<string>()
   matchedTools.forEach(tool => {
-    const marker = toolMarkers.get(tool.id)
-    if (marker) {
-      uniqueMarkers.add(marker)
-      const pos = marker.getPosition()
-      // 🔹 修复：为 pos 添加类型断言
-      const position = pos as { lng: number; lat: number }
-      const key = `${position.lng.toFixed(5)},${position.lat.toFixed(5)}`
-      if (!originalContents.has(key)) {
-        originalContents.set(key, marker.getContent())
+    const key = `${tool.lng.toFixed(5)},${tool.lat.toFixed(5)}`
+    matchedCoordinates.add(key)
+  })
+  
+  // 找出需要高亮的位置并高亮
+  const markersToHighlight: any[] = []
+  
+  // 遍历所有标记，找出匹配坐标的标记
+  toolMarkers.forEach((marker, toolId) => {
+    const tool = tools.value.find(t => t.id === toolId)
+    if (tool) {
+      const key = `${tool.lng.toFixed(5)},${tool.lat.toFixed(5)}`
+      if (matchedCoordinates.has(key)) {
+        markersToHighlight.push(marker)
       }
     }
   })
-  // 重新渲染所有标记（恢复默认状态）
-  addToolMarkers(tools.value)
-  // 高亮匹配的标记
-  uniqueMarkers.forEach(marker => {
+  
+  // 高亮这些标记
+  markersToHighlight.forEach(marker => {
     const pos = marker.getPosition()
     // 🔹 修复：为 pos 添加类型断言
     const position = pos as { lng: number; lat: number }
@@ -447,10 +440,10 @@ const performSearch = () => {
       ">${locationTools.length}</div>`)
     }
   })
+  
   // 聚焦到匹配区域
-  const markerArray = Array.from(uniqueMarkers)
-  if (markerArray.length > 0) {
-    map.setFitView(markerArray, false, [80, 80, 80, 80])
+  if (markersToHighlight.length > 0) {
+    map.setFitView(markersToHighlight, false, [80, 80, 80, 80])
   }
   ElMessage.success(`找到 ${matchedTools.length} 个匹配结果`)
 }

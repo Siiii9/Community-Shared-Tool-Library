@@ -70,11 +70,24 @@ public class BorrowService {
         // 保存借用记录
         BorrowRecord savedRecord = borrowRecordRepository.save(borrowRecord);
         
-        // 更新工具状态为申请中
-        publishedTool.setStatus("pending");
-        publishedToolRepository.save(publishedTool);
+        // 修复：申请阶段不改变工具状态，保持available
+        // publishedTool.setStatus("pending");
+        // publishedToolRepository.save(publishedTool);
         
         return savedRecord;
+    }
+    
+    // 通过toolId归还工具（方便前端调用）
+    @Transactional
+    public BorrowRecord returnToolByToolId(Integer toolId) {
+        // 查找该工具当前正在进行的借用记录
+        List<BorrowRecord> activeRecords = borrowRecordRepository.findActiveBorrowRecordsByToolId(toolId);
+        if (activeRecords.isEmpty()) {
+            throw new RuntimeException("该工具当前没有正在进行的借用记录");
+        }
+        
+        // 使用第一条记录进行归还操作
+        return returnTool(activeRecords.get(0).getId());
     }
     
     // 同意借用申请
@@ -111,7 +124,6 @@ public class BorrowService {
             borrowInfo.setExpectedReturnTime(record.getExpectedReturnTime());
             borrowInfo.setStatus("borrowing");
             borrowInfo.setToolName(publishedTool.getToolName());
-            borrowInfo.setToolType(publishedTool.getToolType());
             
             // 保存BorrowInfo记录
             borrowInfoRepository.save(borrowInfo);
@@ -170,7 +182,6 @@ public class BorrowService {
         borrowInfo.setExpectedReturnTime(record.getExpectedReturnTime());
         borrowInfo.setStatus("borrowing");
         borrowInfo.setToolName(publishedTool.getToolName());
-        borrowInfo.setToolType(publishedTool.getToolType());
         
         // 保存BorrowInfo记录
         borrowInfoRepository.save(borrowInfo);

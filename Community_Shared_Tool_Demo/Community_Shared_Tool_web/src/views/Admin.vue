@@ -4,7 +4,7 @@
     <div class="stats-cards">
       <div class="stat-card">
         <div class="stat-icon">
-          <span class="material-icons">groups</span>
+          <span class="stat-symbol">Total</span>
         </div>
         <div class="stat-info">
           <h3>{{ stats.totalUsers || 0 }}</h3>
@@ -13,7 +13,7 @@
       </div>
       <div class="stat-card">
         <div class="stat-icon active">
-          <span class="material-icons">check_circle</span>
+          <span class="stat-symbol">Active</span>
         </div>
         <div class="stat-info">
           <h3>{{ stats.activeUsers || 0 }}</h3>
@@ -22,7 +22,7 @@
       </div>
       <div class="stat-card">
         <div class="stat-icon frozen">
-          <span class="material-icons">block</span>
+          <span class="stat-symbol">Frozen</span>
         </div>
         <div class="stat-info">
           <h3>{{ stats.frozenUsers || 0 }}</h3>
@@ -86,7 +86,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="280" fixed="right">
+        <el-table-column label="操作" width="300" fixed="right">
           <template #default="scope">
             <el-button 
               v-if="scope.row.isFrozen"
@@ -101,12 +101,14 @@
               type="warning"
               size="small"
               icon="lock"
+              class="center-text-btn"
             >冻结</el-button>
             <el-button 
               @click="resetCredit(scope.row.userId)"
               type="primary"
               size="small"
               icon="refresh"
+              class="center-text-btn"
             >重置信誉</el-button>
           </template>
         </el-table-column>
@@ -395,47 +397,74 @@ onMounted(() => {
   display: flex;
   align-items: center;
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  transition: transform 0.3s ease;
+  transition: all 0.3s ease;
 }
 
 .stat-card:hover {
   transform: translateY(-5px);
+  box-shadow: 0 5px 15px rgba(0,0,0,0.15);
 }
 
 .stat-icon {
-  width: 60px;
-  height: 60px;
+  width: 70px;
+  height: 70px;
   border-radius: 50%;
-  background: #3498db;
+  background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
   display: flex;
   align-items: center;
   justify-content: center;
   margin-right: 20px;
+  box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+  transition: all 0.3s ease;
 }
 
-.stat-icon .material-icons {
-  font-size: 30px;
-  color: white;
+.stat-card:hover .stat-icon {
+  transform: scale(1.1);
+  box-shadow: 0 6px 20px rgba(52, 152, 219, 0.4);
+}
+
+.stat-icon .stat-symbol {
+  font-size: 18px;
+  color: #ffffff !important;
+  font-weight: bold;
+  transition: transform 0.3s ease;
+}
+
+.stat-card:hover .stat-icon .material-icons {
+  transform: scale(1.2);
 }
 
 .stat-icon.active {
-  background: #2ecc71;
+  background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
+  box-shadow: 0 4px 12px rgba(46, 204, 113, 0.3);
+}
+
+.stat-card:hover .stat-icon.active {
+  box-shadow: 0 6px 20px rgba(46, 204, 113, 0.4);
 }
 
 .stat-icon.frozen {
-  background: #e74c3c;
+  background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+  box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3);
+}
+
+.stat-card:hover .stat-icon.frozen {
+  box-shadow: 0 6px 20px rgba(231, 76, 60, 0.4);
 }
 
 .stat-info h3 {
-  font-size: 28px;
+  font-size: 32px;
   margin: 0;
   color: #2c3e50;
+  font-weight: 600;
+  letter-spacing: -0.5px;
 }
 
 .stat-info p {
-  margin: 5px 0 0;
+  margin: 8px 0 0;
   color: #7f8c8d;
-  font-size: 14px;
+  font-size: 16px;
+  font-weight: 500;
 }
 
 .users-table {
@@ -504,6 +533,71 @@ onMounted(() => {
   border: none;
   padding: 4px 8px;
   font-weight: 500;
+}
+
+/* Custom styles for freeze/unfreeze buttons */
+:deep(.el-button--small) {
+  margin-right: 8px;
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Center text for specific buttons */
+:deep(.el-button.center-text-btn) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+/* Adjust text position for freeze and reset buttons */
+:deep(.el-button--small.el-button--warning),
+:deep(.el-button--small.el-button--primary) {
+  justify-content: center;
+  text-align: center;
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+:deep(.el-button--small:hover) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+:deep(.el-button--warning.is-small) {
+  background: #f39c12;
+  border-color: #f39c12;
+  color: white;
+}
+
+:deep(.el-button--warning.is-small:hover) {
+  background: #e67e22;
+  border-color: #e67e22;
+}
+
+:deep(.el-button--success.is-small) {
+  background: #27ae60;
+  border-color: #27ae60;
+  color: white;
+}
+
+:deep(.el-button--success.is-small:hover) {
+  background: #229954;
+  border-color: #229954;
+}
+
+:deep(.el-button--primary.is-small) {
+  background: #3498db;
+  border-color: #3498db;
+  color: white;
+}
+
+:deep(.el-button--primary.is-small:hover) {
+  background: #2980b9;
+  border-color: #2980b9;
 }
 
 @media (max-width: 768px) {

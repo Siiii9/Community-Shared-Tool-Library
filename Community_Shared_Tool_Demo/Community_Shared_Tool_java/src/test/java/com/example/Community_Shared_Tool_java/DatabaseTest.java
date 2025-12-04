@@ -25,7 +25,6 @@ public class DatabaseTest {
             System.out.println("ID: " + borrowInfo.getId());
             System.out.println("  工具ID: " + borrowInfo.getToolId());
             System.out.println("  工具名称: " + borrowInfo.getToolName());
-            System.out.println("  工具类型: " + borrowInfo.getToolType());
             System.out.println("  借用者ID: " + borrowInfo.getBorrowerId());
             System.out.println("  所有者ID: " + borrowInfo.getOwnerId());
             System.out.println("  借用时间: " + borrowInfo.getBorrowTime());

@@ -2,8 +2,7 @@
 <template>
   <div class="community-chat">
     <div class="chat-header">
-      <h2>社区聊天室</h2>
-      <p>与邻居交流工具使用心得、发起互助请求</p>
+      <!-- 已删除标题、描述文字 -->
     </div>
 
     <div class="chat-container">
@@ -11,10 +10,6 @@
       <div class="chat-list">
         <div class="list-header">
           <h3>聊天列表</h3>
-          <button class="new-chat-btn">
-            <span class="material-icons">add</span>
-            新建聊天
-          </button>
         </div>
         
         <div class="chat-items">
@@ -255,7 +250,7 @@ const onKeyPress = (event) => {
 
 .chat-container {
   display: flex;
-  height: calc(100vh - 180px);
+  height: calc(100vh - 140px);
   background: white;
   border-radius: 12px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);

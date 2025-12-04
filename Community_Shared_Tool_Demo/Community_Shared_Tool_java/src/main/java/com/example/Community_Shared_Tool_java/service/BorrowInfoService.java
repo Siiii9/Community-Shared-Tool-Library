@@ -51,7 +51,6 @@ public class BorrowInfoService {
         // 设置借用信息
         borrowInfo.setStatus("borrowing");
         borrowInfo.setToolName(tool.getToolName());
-        borrowInfo.setToolType(tool.getToolType());
         
         return borrowInfoRepository.save(borrowInfo);
     }
@@ -370,5 +369,48 @@ public class BorrowInfoService {
             logger.error("借用记录不存在，无法删除，ID: {}", id);
             throw new RuntimeException("借用记录不存在");
         }
+    }
+    
+    // 应急修复：强制清除工具的借用状态（用于解决借用者信息丢失的情况）
+    @Transactional
+    public void forceClearToolBorrowStatus(Integer toolId) {
+        logger.info("开始强制清除工具借用状态，工具ID: {}", toolId);
+        
+        // 查找工具
+        Optional<PublishedTool> toolOpt = publishedToolRepository.findById(toolId);
+        if (toolOpt.isEmpty()) {
+            logger.error("工具不存在，无法清除借用状态，工具ID: {}", toolId);
+            throw new RuntimeException("工具不存在");
+        }
+        
+        PublishedTool tool = toolOpt.get();
+        logger.info("找到工具: {}，当前状态: {}", tool.getToolName(), tool.getStatus());
+        
+        // 查找该工具的所有借用记录（不管借用者是谁）
+        List<BorrowInfo> borrowInfos = borrowInfoRepository.findByToolId(toolId);
+        logger.info("找到BorrowInfo记录数量: {}", borrowInfos.size());
+        
+        // 删除所有借用记录
+        for (BorrowInfo borrowInfo : borrowInfos) {
+            logger.info("删除BorrowInfo记录 ID: {}, 工具ID: {}, 借用者ID: {}", borrowInfo.getId(), borrowInfo.getToolId(), borrowInfo.getBorrowerId());
+            borrowInfoRepository.deleteById(borrowInfo.getId());
+        }
+        
+        // 查找该工具的所有借用申请记录
+        List<BorrowRecord> borrowRecords = borrowRecordRepository.findByToolId(toolId);
+        logger.info("找到BorrowRecord记录数量: {}", borrowRecords.size());
+        
+        // 删除所有借用申请记录
+        for (BorrowRecord borrowRecord : borrowRecords) {
+            logger.info("删除BorrowRecord记录 ID: {}, 工具ID: {}, 借用者ID: {}, 状态: {}", borrowRecord.getId(), borrowRecord.getToolId(), borrowRecord.getBorrowerId(), borrowRecord.getStatus());
+            borrowRecordRepository.deleteById(borrowRecord.getId());
+        }
+        
+        // 更新工具状态为可用
+        tool.setStatus("available");
+        publishedToolRepository.save(tool);
+        logger.info("工具状态已更新为: available");
+        
+        logger.info("强制清除工具借用状态完成，工具ID: {}", toolId);
     }
 }

@@ -2,7 +2,6 @@
   <div class="profile">
     <div class="profile-header">
       <h1>个人信息</h1>
-      <p>管理您的个人资料和账户设置</p>
     </div>
 
     <div class="profile-content">
@@ -41,29 +40,7 @@
             </div>
           </div>
           
-          <!-- 认证信息显示 -->
-          <div v-if="isVerified" class="verification-details">
-            <div class="info-item">
-              <label>认证姓名</label>
-              <div class="info-value">{{ getVerificationInfo().name }}</div>
-            </div>
-            <div class="info-item">
-              <label>认证年龄</label>
-              <div class="info-value">{{ getVerificationInfo().age }}岁</div>
-            </div>
-            <div class="info-item">
-              <label>认证性别</label>
-              <div class="info-value">{{ getVerificationInfo().gender === 'male' ? '男' : '女' }}</div>
-            </div>
-            <div class="info-item">
-              <label>身份证号</label>
-              <div class="info-value">{{ getVerificationInfo().idCard }}</div>
-            </div>
-            <div class="info-item">
-              <label>认证时间</label>
-              <div class="info-value">{{ formatDate(getVerificationInfo().verifiedAt) }}</div>
-            </div>
-          </div>
+
         </div>
       </div>
 
@@ -105,25 +82,19 @@
             <input type="text" v-model="verificationData.name" placeholder="请输入真实姓名" />
           </div>
           <div class="form-group">
-            <label>年龄</label>
-            <input type="number" v-model="verificationData.age" placeholder="请输入年龄" />
-          </div>
-          <div class="form-group">
-            <label>性别</label>
-            <div class="gender-options">
-              <label>
-                <input type="radio" v-model="verificationData.gender" value="male" />
-                男
-              </label>
-              <label>
-                <input type="radio" v-model="verificationData.gender" value="female" />
-                女
-              </label>
-            </div>
-          </div>
-          <div class="form-group">
             <label>身份证号</label>
             <input type="text" v-model="verificationData.idCard" placeholder="请输入身份证号码" />
+          </div>
+          <div class="form-group">
+            <label>住址</label>
+            <div class="address-input-group">
+              <input type="number" v-model="verificationData.addressBuilding" placeholder="请输入数字" min="1" />
+              <span class="address-label">号楼</span>
+              <input type="number" v-model="verificationData.addressUnit" placeholder="请输入数字" min="1" />
+              <span class="address-label">单元</span>
+              <input type="number" v-model="verificationData.addressFloorRoom" placeholder="请输入数字" min="1" />
+              <span class="address-label">号</span>
+            </div>
           </div>
         </div>
         <div class="modal-footer">
@@ -149,9 +120,10 @@ const currentUser = ref({
 // 实名认证数据
 const verificationData = reactive({
   name: '',
-  age: '',
-  gender: '',
-  idCard: ''
+  idCard: '',
+  addressBuilding: '',
+  addressUnit: '',
+  addressFloorRoom: ''
 })
 
 // 获取当前用户ID
@@ -187,9 +159,12 @@ const getVerificationInfo = () => {
   }
   return {
     name: '',
-    age: '',
-    gender: '',
     idCard: '',
+    address: '',
+    addressBuilding: '',
+    addressUnit: '',
+    addressFloor: '',
+    addressRoom: '',
     verifiedAt: ''
   }
 }
@@ -210,14 +185,8 @@ const formatDate = (dateString) => {
 // 提交实名认证
 const submitVerification = () => {
   // 简单的表单验证
-  if (!verificationData.name || !verificationData.age || !verificationData.gender || !verificationData.idCard) {
+  if (!verificationData.name || !verificationData.idCard || !verificationData.addressBuilding || !verificationData.addressUnit || !verificationData.addressFloorRoom) {
     alert('请填写完整的认证信息')
-    return
-  }
-  
-  // 年龄验证
-  if (verificationData.age < 0 || verificationData.age > 150) {
-    alert('请输入有效的年龄')
     return
   }
   
@@ -227,15 +196,17 @@ const submitVerification = () => {
     return
   }
   
+  // 组合完整的住址信息
+  const fullAddress = `${verificationData.addressBuilding}号楼-${verificationData.addressUnit}单元-${verificationData.addressFloorRoom}号`
+  
   // 保存认证信息到本地存储
   const verificationInfo = {
-    isVerified: true,
-    name: verificationData.name,
-    age: verificationData.age,
-    gender: verificationData.gender,
-    idCard: verificationData.idCard,
-    verifiedAt: new Date().toISOString()
-  }
+      isVerified: true,
+      name: verificationData.name,
+      idCard: verificationData.idCard,
+      address: fullAddress,
+      verifiedAt: new Date().toISOString()
+    }
   
   const userVerificationKey = getUserVerificationKey()
   localStorage.setItem(userVerificationKey, JSON.stringify(verificationInfo))
@@ -243,14 +214,16 @@ const submitVerification = () => {
   // 更新认证状态
   isVerified.value = true
   showVerificationModal.value = false
-  alert(`实名认证成功！\n姓名：${verificationData.name}\n身份证号：${verificationData.idCard}`)
+  alert(`实名认证成功！\n姓名：${verificationData.name}\n身份证号：${verificationData.idCard}\n住址：${fullAddress}`)
   
   // 清空表单数据
   Object.assign(verificationData, {
     name: '',
-    age: '',
-    gender: '',
-    idCard: ''
+    idCard: '',
+    addressBuilding: '',
+    addressUnit: '',
+    addressFloor: '',
+    addressRoom: ''
   })
 }
 </script>
@@ -394,34 +367,7 @@ const submitVerification = () => {
   font-size: 1.1rem;
 }
 
-/* 认证信息详情样式 */
-.verification-details {
-  margin-top: 20px;
-  padding: 20px;
-  background: #f8f9fa;
-  border-radius: 8px;
-  border-left: 4px solid #27ae60;
-}
 
-.verification-details .info-item {
-  border-bottom: none;
-  margin-bottom: 10px;
-  padding-bottom: 5px;
-}
-
-.verification-details .info-item:last-child {
-  margin-bottom: 0;
-}
-
-.verification-details .info-item label {
-  color: #27ae60;
-  font-weight: 600;
-}
-
-.verification-details .info-value {
-  color: #2c3e50;
-  font-weight: 500;
-}
 
 /* 实名认证弹窗样式 */
 .modal-overlay {
@@ -489,6 +435,30 @@ const submitVerification = () => {
   border: 1px solid #ddd;
   border-radius: 6px;
   font-size: 0.95rem;
+}
+
+.address-input-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: nowrap;
+  width: 25%; /* 总宽度调整为25%，比身份证输入框短 */
+}
+
+.address-label {
+  color: #666;
+  font-weight: 500;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.address-input-group input {
+  width: 45px;
+  padding: 6px;
+  border: 1px solid #ddd;
+  border-radius: 3px;
+  font-size: 0.85rem;
+  flex-shrink: 0;
 }
 
 .gender-options {

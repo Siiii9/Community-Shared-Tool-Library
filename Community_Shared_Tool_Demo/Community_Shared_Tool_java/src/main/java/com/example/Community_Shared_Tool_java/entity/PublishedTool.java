@@ -22,8 +22,7 @@ public class PublishedTool {
     @Column(name = "tool_name", nullable = false, length = 100)
     private String toolName;
 
-    @NotBlank(message = "工具类型不能为空")
-    @Column(name = "tool_type", nullable = false, length = 50)
+    @Column(name = "tool_type", nullable = true, length = 50)
     private String toolType;
 
     @Column(name = "description", columnDefinition = "TEXT")
@@ -47,6 +46,10 @@ public class PublishedTool {
     @NotNull(message = "工具所有者ID不能为空")
     @Column(name = "owner_id", nullable = false)
     private Integer ownerId;
+
+    // 借用者ID，用于记录当前借用工具的用户
+    @Column(name = "borrower_id")
+    private Integer borrowerId;
 
     @Column(name = "publish_time")
     @CreationTimestamp
@@ -167,5 +170,13 @@ public class PublishedTool {
 
     public void setBorrowDaysLimit(Integer borrowDaysLimit) {
         this.borrowDaysLimit = borrowDaysLimit;
+    }
+
+    public Integer getBorrowerId() {
+        return borrowerId;
+    }
+
+    public void setBorrowerId(Integer borrowerId) {
+        this.borrowerId = borrowerId;
     }
 }

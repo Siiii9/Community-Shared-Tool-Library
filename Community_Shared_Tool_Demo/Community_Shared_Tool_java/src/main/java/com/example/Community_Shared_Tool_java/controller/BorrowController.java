@@ -22,11 +22,45 @@ public class BorrowController {
     @PostMapping("/apply")
     public ResponseEntity<Map<String, Object>> applyBorrow(@RequestBody Map<String, Object> request) {
         try {
+            // 检查并解析所有必需参数
+            if (!request.containsKey("toolId") || request.get("toolId") == null) {
+                throw new IllegalArgumentException("缺少必需参数: toolId");
+            }
+            if (!request.containsKey("borrowerId") || request.get("borrowerId") == null) {
+                throw new IllegalArgumentException("缺少必需参数: borrowerId");
+            }
+            if (!request.containsKey("ownerId") || request.get("ownerId") == null) {
+                throw new IllegalArgumentException("缺少必需参数: ownerId");
+            }
+            if (!request.containsKey("borrowDays") || request.get("borrowDays") == null) {
+                throw new IllegalArgumentException("缺少必需参数: borrowDays");
+            }
+            if (!request.containsKey("applyReason") || request.get("applyReason") == null) {
+                throw new IllegalArgumentException("缺少必需参数: applyReason");
+            }
+            
             Integer toolId = Integer.parseInt(request.get("toolId").toString());
             Integer borrowerId = Integer.parseInt(request.get("borrowerId").toString());
             Integer ownerId = Integer.parseInt(request.get("ownerId").toString());
             Integer borrowDays = Integer.parseInt(request.get("borrowDays").toString());
             String applyReason = request.get("applyReason").toString();
+            
+            // 验证参数有效性
+            if (toolId <= 0) {
+                throw new IllegalArgumentException("无效的工具ID");
+            }
+            if (borrowerId <= 0) {
+                throw new IllegalArgumentException("无效的借用者ID");
+            }
+            if (ownerId <= 0) {
+                throw new IllegalArgumentException("无效的所有者ID");
+            }
+            if (borrowDays <= 0) {
+                throw new IllegalArgumentException("借用天数必须大于0");
+            }
+            if (applyReason.trim().isEmpty()) {
+                throw new IllegalArgumentException("借用原因不能为空");
+            }
             
             BorrowRecord record = borrowService.applyBorrow(toolId, borrowerId, ownerId, borrowDays, applyReason);
             
@@ -35,7 +69,17 @@ public class BorrowController {
             response.put("message", "借用申请提交成功");
             response.put("data", record);
             
-            return ResponseEntity.ok(response);
+            return ResponseEntity.status(HttpStatus.OK).body(response);
+        } catch (NumberFormatException e) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("message", "参数格式错误: 请确保数字参数为有效整数");
+            return ResponseEntity.badRequest().body(response);
+        } catch (IllegalArgumentException e) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(response);
         } catch (Exception e) {
             Map<String, Object> response = new HashMap<>();
             response.put("success", false);
@@ -55,7 +99,7 @@ public class BorrowController {
             response.put("message", "借用申请已同意");
             response.put("data", record);
             
-            return ResponseEntity.ok(response);
+            return ResponseEntity.status(HttpStatus.OK).body(response);
         } catch (Exception e) {
             Map<String, Object> response = new HashMap<>();
             response.put("success", false);
@@ -77,7 +121,7 @@ public class BorrowController {
             response.put("message", "借用申请已拒绝");
             response.put("data", record);
             
-            return ResponseEntity.ok(response);
+            return ResponseEntity.status(HttpStatus.OK).body(response);
         } catch (Exception e) {
             Map<String, Object> response = new HashMap<>();
             response.put("success", false);
@@ -97,7 +141,7 @@ public class BorrowController {
             response.put("message", "工具取用确认成功");
             response.put("data", record);
             
-            return ResponseEntity.ok(response);
+            return ResponseEntity.status(HttpStatus.OK).body(response);
         } catch (Exception e) {
             Map<String, Object> response = new HashMap<>();
             response.put("success", false);
@@ -114,10 +158,35 @@ public class BorrowController {
             
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
-            response.put("message", "工具归还成功");
+            response.put("message", "工具归还申请已提交！等待物品所有者确认。");
             response.put("data", record);
             
-            return ResponseEntity.ok(response);
+            return ResponseEntity.status(HttpStatus.OK).body(response);
+        } catch (Exception e) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+        }
+    }
+    
+    // 通过toolId归还工具（方便前端调用）
+    @PostMapping("/return")
+    public ResponseEntity<Map<String, Object>> returnToolByToolId(@RequestBody Map<String, Object> request) {
+        try {
+            if (!request.containsKey("toolId") || request.get("toolId") == null) {
+                throw new IllegalArgumentException("缺少必需参数: toolId");
+            }
+            
+            Integer toolId = Integer.parseInt(request.get("toolId").toString());
+            BorrowRecord record = borrowService.returnToolByToolId(toolId);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "工具归还申请已提交！等待物品所有者确认。");
+            response.put("data", record);
+            
+            return ResponseEntity.status(HttpStatus.OK).body(response);
         } catch (Exception e) {
             Map<String, Object> response = new HashMap<>();
             response.put("success", false);
@@ -136,7 +205,7 @@ public class BorrowController {
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("data", borrowRecords);
-            return ResponseEntity.ok(response);
+            return ResponseEntity.status(HttpStatus.OK).body(response);
         } catch (Exception e) {
             Map<String, Object> response = new HashMap<>();
             response.put("success", false);
@@ -155,11 +224,30 @@ public class BorrowController {
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("data", applications);
-            return ResponseEntity.ok(response);
+            return ResponseEntity.status(HttpStatus.OK).body(response);
         } catch (Exception e) {
             Map<String, Object> response = new HashMap<>();
             response.put("success", false);
             response.put("message", "获取借用申请失败：" + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
+    
+    /**
+     * 获取用户收到的待审批申请
+     */
+    @GetMapping("/pending-applications/{userId}")
+    public ResponseEntity<Map<String, Object>> getPendingApplications(@PathVariable Integer userId) {
+        try {
+            List<BorrowRecord> applications = borrowService.getBorrowApplicationsByOwnerId(userId);
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("data", applications);
+            return ResponseEntity.status(HttpStatus.OK).body(response);
+        } catch (Exception e) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("message", "获取待审批申请失败：" + e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
         }
     }
@@ -174,7 +262,7 @@ public class BorrowController {
             response.put("success", true);
             response.put("data", records);
             
-            return ResponseEntity.ok(response);
+            return ResponseEntity.status(HttpStatus.OK).body(response);
         } catch (Exception e) {
             Map<String, Object> response = new HashMap<>();
             response.put("success", false);
@@ -194,7 +282,7 @@ public class BorrowController {
             response.put("message", "工具归还确认成功");
             response.put("data", record);
             
-            return ResponseEntity.ok(response);
+            return ResponseEntity.status(HttpStatus.OK).body(response);
         } catch (Exception e) {
             Map<String, Object> response = new HashMap<>();
             response.put("success", false);
@@ -214,7 +302,7 @@ public class BorrowController {
             response.put("message", "工具归还拒绝成功");
             response.put("data", record);
             
-            return ResponseEntity.ok(response);
+            return ResponseEntity.status(HttpStatus.OK).body(response);
         } catch (Exception e) {
             Map<String, Object> response = new HashMap<>();
             response.put("success", false);
