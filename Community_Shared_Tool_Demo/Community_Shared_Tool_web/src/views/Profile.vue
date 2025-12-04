@@ -17,7 +17,7 @@
         <div class="info-section">
           <div class="info-item">
             <label>用户名</label>
-            <div class="info-value">demo_user</div>
+            <div class="info-value">{{ currentUser.username }}</div>
           </div>
           <div class="info-item">
             <label>手机号</label>
@@ -141,6 +141,11 @@ import { ref, reactive, onMounted } from 'vue'
 const showVerificationModal = ref(false)
 const isVerified = ref(false)
 
+// 当前用户信息
+const currentUser = ref({
+  username: localStorage.getItem('username') || 'demo_user'
+})
+
 // 实名认证数据
 const verificationData = reactive({
   name: '',
@@ -149,9 +154,24 @@ const verificationData = reactive({
   idCard: ''
 })
 
+// 获取当前用户ID
+const getCurrentUserId = () => {
+  return localStorage.getItem('userId') || 'default'
+}
+
+// 获取用户专属的认证信息存储键
+const getUserVerificationKey = () => {
+  const userId = getCurrentUserId()
+  return `userVerification_${userId}`
+}
+
 // 页面加载时检查认证状态
 onMounted(() => {
-  const savedVerification = localStorage.getItem('userVerification')
+  // 更新当前用户信息
+  currentUser.value.username = localStorage.getItem('username') || 'demo_user'
+  
+  const userVerificationKey = getUserVerificationKey()
+  const savedVerification = localStorage.getItem(userVerificationKey)
   if (savedVerification) {
     const verification = JSON.parse(savedVerification)
     isVerified.value = verification.isVerified
@@ -160,7 +180,8 @@ onMounted(() => {
 
 // 获取认证信息
 const getVerificationInfo = () => {
-  const savedVerification = localStorage.getItem('userVerification')
+  const userVerificationKey = getUserVerificationKey()
+  const savedVerification = localStorage.getItem(userVerificationKey)
   if (savedVerification) {
     return JSON.parse(savedVerification)
   }
@@ -216,7 +237,8 @@ const submitVerification = () => {
     verifiedAt: new Date().toISOString()
   }
   
-  localStorage.setItem('userVerification', JSON.stringify(verificationInfo))
+  const userVerificationKey = getUserVerificationKey()
+  localStorage.setItem(userVerificationKey, JSON.stringify(verificationInfo))
   
   // 更新认证状态
   isVerified.value = true

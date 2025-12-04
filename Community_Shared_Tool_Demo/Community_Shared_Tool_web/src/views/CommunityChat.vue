@@ -90,8 +90,9 @@
               v-model="newMessage" 
               placeholder="输入消息..."
               class="message-input"
+              @keypress="onKeyPress"
             >
-            <button class="send-btn">
+            <button @click="sendMessage" class="send-btn">
               <span class="material-icons">send</span>
             </button>
           </div>
@@ -153,6 +154,86 @@ const currentChat = computed(() => {
 
 const selectChat = (chatId) => {
   activeChatId.value = chatId
+}
+
+// 发送消息功能
+const sendMessage = () => {
+  if (!newMessage.value.trim() || !currentChat.value) return
+  
+  const currentTime = new Date()
+  const hours = currentTime.getHours().toString().padStart(2, '0')
+  const minutes = currentTime.getMinutes().toString().padStart(2, '0')
+  const timeString = `${hours}:${minutes}`
+  
+  // 创建新消息
+  const newMessageObj = {
+    id: Date.now(),
+    text: newMessage.value.trim(),
+    time: timeString,
+    isOwn: true
+  }
+  
+  // 添加到当前聊天
+  currentChat.value.messages.push(newMessageObj)
+  
+  // 更新聊天列表的最后一条消息
+  const chatIndex = chatList.value.findIndex(chat => chat.id === activeChatId.value)
+  if (chatIndex !== -1) {
+    chatList.value[chatIndex].lastMessage = `我：${newMessage.value.trim()}`
+    chatList.value[chatIndex].time = timeString
+  }
+  
+  // 清空输入框
+  newMessage.value = ''
+  
+  // 模拟对方回复（可选）
+  setTimeout(() => {
+    if (currentChat.value) {
+      const replyTime = new Date()
+      const replyHours = replyTime.getHours().toString().padStart(2, '0')
+      const replyMinutes = (replyTime.getMinutes() + 1).toString().padStart(2, '0')
+      const replyTimeString = `${replyHours}:${replyMinutes}`
+      
+      const replyMessage = {
+        id: Date.now() + 1,
+        text: getRandomReply(),
+        time: replyTimeString,
+        isOwn: false
+      }
+      
+      currentChat.value.messages.push(replyMessage)
+      
+      // 更新聊天列表的最后一条消息
+      if (chatIndex !== -1) {
+        chatList.value[chatIndex].lastMessage = `${currentChat.value.name.split(' ')[0]}：${replyMessage.text}`
+        chatList.value[chatIndex].time = replyTimeString
+      }
+    }
+  }, 1000 + Math.random() * 2000) // 1-3秒后回复
+}
+
+// 获取随机回复
+const getRandomReply = () => {
+  const replies = [
+    '收到！',
+    '好的，没问题',
+    '这个建议不错',
+    '我考虑一下',
+    '谢谢分享',
+    '明白了',
+    '稍等我看一下',
+    '这个工具我也有',
+    '可以借用',
+    '什么时候方便？'
+  ]
+  return replies[Math.floor(Math.random() * replies.length)]
+}
+
+// 支持回车发送
+const onKeyPress = (event) => {
+  if (event.key === 'Enter') {
+    sendMessage()
+  }
 }
 </script>
 
